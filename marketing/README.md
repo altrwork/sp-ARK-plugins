@@ -1,4 +1,4 @@
-# ARK Event Agent
+# sp-ARK Email Event Agent
 
 An AI agent that grows your event distribution list automatically. It scrapes the CEO's Gmail inbox for contacts not already on the list, drafts personalized event invitations, and syncs RSVP responses back to a Google Sheet — all in three commands.
 
