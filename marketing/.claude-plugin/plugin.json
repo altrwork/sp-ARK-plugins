@@ -1,0 +1,12 @@
+{
+  "name": "sp-ark-marketing",
+  "version": "0.1.0",
+  "description": "Event marketing agent for startup accelerators. Scrapes the CEO's inbox to build a contact database and drafts personalized event invitations.",
+  "author": {
+    "name": "Jarred Robidoux",
+    "email": "jarredrobidoux@gmail.com"
+  },
+  "keywords": ["email", "marketing", "events", "startup", "accelerator"],
+  "skills": "./skills/"
+}
+
