@@ -139,6 +139,7 @@ For each transaction record, assign it to one of the five expense codes from the
   - Pollen Robot → `6080` (office tool/equipment)
   - Emerge AI Hub → `6200` (event-related)
   - Restaurants / cafes → `6080` Office & Operating Expenses - Meals & Hospitality
+  - Zoom → `6300` Technology & Software
 
 **Build the Notes field** using this format:
 ```
