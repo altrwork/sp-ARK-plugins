@@ -54,7 +54,12 @@ Community operations automation for startup accelerators. Works entirely with lo
 **Skills:**
 - `/expense-report [path to scans folder]` — reads PDFs from a local scans folder, extracts transaction data using Claude's native PDF reading, categorizes each transaction into one of five expense codes, and appends new rows to a local Excel report file using Python/openpyxl
 
-**No connectors.** All file I/O is local (Read tool + Bash/Python).
+**Skills:**
+- `/draft-agreement` — searches Outlook for the latest Microsoft Forms event rental submission, extracts event details, asks for pricing, and generates a filled Word document agreement using Python/python-docx
+
+**Connectors:** `ms365` (Microsoft 365 / Outlook). Configured via `.mcp.json` — requires one-time `npx @softeria/ms-365-mcp-server --login` to authenticate. See `CONNECTORS.md`.
+
+The expense-report skill uses no connectors — all file I/O is local (Read tool + Bash/Python).
 
 ---
 

@@ -1,5 +1,5 @@
 # macOS
 .DS_Store
 
-# mcp servers
-.mcp.json
+# mcp servers (root-level only — plugin .mcp.json files should be committed)
+/.mcp.json

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ms365": {
+      "command": "npx",
+      "args": ["-y", "@softeria/ms-365-mcp-server", "--org-mode"],
+      "env": {
+        "MS365_MCP_OUTPUT_FORMAT": "toon"
+      }
+    }
+  }
+}
