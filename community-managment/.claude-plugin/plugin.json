@@ -1,0 +1,12 @@
+{
+  "name": "sp-ark-community",
+  "displayName": "Community Management",
+  "version": "0.1.0",
+  "description": "Community engagement agent for startup accelerators. Compiles expense reports and sends event agreements.",
+  "author": {
+    "name": "Jarred Robidoux",
+    "email": "jarredrobidoux@gmail.com"
+  },
+  "keywords": ["expense reports", "community engagement", "event agreements", "events", "startup", "accelerator"],
+  "skills": "./skills/"
+}
