@@ -18,7 +18,7 @@ sp-ARK-plugins/
 │   └── skills/
 │       ├── inbox-scraper/      # /scrape-inbox skill
 │       └── draft-invites/      # /draft-invites skill
-└── community-managment/        # Plugin: community operations
+└── community-management/       # Plugin: community operations
     └── skills/
         └── expense-reports/    # /expense-report skill
 ```

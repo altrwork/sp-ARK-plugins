@@ -9,7 +9,7 @@
     {
       "name": "sp-ark-community",
       "displayName": "Community Management",
-      "source": "./community-managment",
+      "source": "./community-management",
       "description": "Compiles expense reports and manages community engagement for sp-ARK accelerator programs.",
       "author": {
         "name": "Jarred Robidoux",
