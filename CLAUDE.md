@@ -4,59 +4,69 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Repo Is
 
-This is **sp-ARK-plugins** — a collection of AI agent skills for Claude Code / Cowork, built for startup accelerator customers. Skills are installed into Claude Code and invoked via slash commands. They use MCP-connected external services (Gmail, Google Drive/Sheets) to automate marketing and operations workflows.
-
-There is no build step, no test runner, and no server. Skills are Markdown files.
+This is **sp-ARK-plugins** — a collection of AI agent plugins for Claude Code, built for startup accelerator operations. Plugins are installed into Claude Code and invoked via slash commands. There is no build step, no test runner, and no server. Skills are Markdown files.
 
 ## Repository Structure
 
 ```
 sp-ARK-plugins/
-└── marketing/              # Plugin for event marketing automation
-    ├── CONNECTORS.md       # MCP server setup for Gmail + Google Drive
-    ├── README.md           # End-user docs for the marketing plugin
+├── .claude-plugin/
+│   └── marketplace.json        # Marketplace catalog for plugin distribution
+├── marketing/                  # Plugin: event marketing automation
+│   ├── CONNECTORS.md           # MCP setup for Gmail + Google Drive
+│   ├── README.md               # End-user docs
+│   └── skills/
+│       ├── inbox-scraper/      # /scrape-inbox skill
+│       └── draft-invites/      # /draft-invites skill
+└── community-managment/        # Plugin: community operations
     └── skills/
-        ├── inbox-scraper/  # /scrape-inbox skill
-        └── draft-invites/  # /draft-invites skill
+        └── expense-reports/    # /expense-report skill
 ```
 
-Each skill is a folder containing a `SKILL.md` — the only required file. Optional subdirectories: `scripts/`, `references/`, `assets/`.
+Each skill is a folder containing a `SKILL.md` — the only required file.
 
-## Skill Architecture
+## Plugins
 
-Skills use `~~email` and `~~spreadsheet` as connector placeholders. These are swapped at runtime for whatever MCP tool the user has connected (see `marketing/CONNECTORS.md`). Do not reference specific MCP tool names (e.g. `mcp__claude_ai_Gmail__*`) inside skill files — always use the `~~category` placeholder pattern.
+### `sp-ark-marketing` (marketing/)
 
-The two connectors in use:
+Event marketing automation for startup accelerators. Uses Gmail and Google Drive MCPs via claude.ai integrations.
+
+**Skills:**
+- `/scrape-inbox <sheet_url> [days=30]` — scans the CEO's Gmail inbox for contacts not on the distribution list Sheet and appends new rows
+- `/draft-invites "<event name, date, location>"` — reads the distribution list, finds uninvited contacts, saves personalized Gmail drafts, and updates the Sheet
+
+**Connectors:** `~~email` (Gmail) and `~~spreadsheet` (Google Drive/Sheets). These are placeholder patterns swapped at runtime — never hardcode specific MCP tool names inside skill files.
 
 | Placeholder | Connected tool | MCP endpoint |
 |---|---|---|
 | `~~email` | Gmail | `https://gmailmcp.googleapis.com/mcp/v1` |
 | `~~spreadsheet` | Google Drive / Sheets | `https://drivemcp.googleapis.com/mcp/v1` |
 
-## Demo Sheet
-
-The `draft-invites` skill has a hardcoded sheet ID for demo purposes:
-`1tYDIr6GZy5jl01oiWOrjXEyu6FdElaBil-i7lvh_oZs`
-
+**Demo Sheet ID:** `1tYDIr6GZy5jl01oiWOrjXEyu6FdElaBil-i7lvh_oZs`
 Schema: `Name | Organization | How do I know them | Events Invited`
 
-`Events Invited` is a comma-separated list of event names. This is how the skill tracks invite history across multiple events over time.
+---
 
-## Skills in This Repo
+### `sp-ark-community` (community-managment/)
 
-### `/scrape-inbox` (`inbox-scraper`)
-Scans the CEO's Gmail inbox (sent + received) for contacts not already on the distribution list Sheet, infers company from email domain, and appends new rows. Usage: `/scrape-inbox <sheet_url> [days=30]`
+Community operations automation for startup accelerators. Works entirely with local files — no MCP connectors required.
 
-### `/draft-invites` (`draft-invites`)
-Reads the distribution list Sheet, finds contacts whose `Events Invited` column does not contain the specified event, and saves a personalized Gmail draft for each one. Updates the Sheet after drafting. Usage: `/draft-invites "<event name, date, location>"`
+**Skills:**
+- `/expense-report [path to scans folder]` — reads PDFs from a local scans folder, extracts transaction data using Claude's native PDF reading, categorizes each transaction into one of five expense codes, and appends new rows to a local Excel report file using Python/openpyxl
 
-## Planned Skills (not yet built)
+**No connectors.** All file I/O is local (Read tool + Bash/Python).
 
-- `/sync-responses` — monitor inbox for RSVP replies and update the Sheet
+---
 
 ## Adding a New Skill
 
 1. Create a folder under the relevant plugin's `skills/` directory
-2. Write a `SKILL.md` with YAML frontmatter (`name`, `description`, `argument-hint`) and step-by-step instructions
-3. Use `~~email` / `~~spreadsheet` placeholders — never hardcode MCP tool names
-4. Update `README.md` to document the new slash command
+2. Write a `SKILL.md` with YAML frontmatter (`name`, `description`, `argument-hint`)
+3. For marketing skills: use `~~email` / `~~spreadsheet` placeholders — never hardcode MCP tool names
+4. For community skills: use local file operations (Read tool, Bash/Python) — no MCP needed
+5. Update `marketplace.json` if adding a new plugin (not needed for new skills within an existing plugin)
+
+## Planned Skills (not yet built)
+
+- `/sync-responses` (marketing) — monitor inbox for RSVP replies and update the Sheet
+- `/send-report` (community) — email the completed expense report to the CEO at month-end

@@ -1,0 +1,32 @@
+{
+  "name": "sp-ark-plugins",
+  "owner": {
+    "name": "Jarred Robidoux",
+    "email": "jarredrobidoux@gmail.com"
+  },
+  "description": "AI agent skills for sp-ARK startup accelerator operations",
+  "plugins": [
+    {
+      "name": "sp-ark-community",
+      "displayName": "Community Management",
+      "source": "./community-managment",
+      "description": "Compiles expense reports and manages community engagement for sp-ARK accelerator programs.",
+      "author": {
+        "name": "Jarred Robidoux",
+        "email": "jarredrobidoux@gmail.com"
+      },
+      "keywords": ["expense reports", "community", "events", "startup", "accelerator"]
+    },
+    {
+      "name": "sp-ark-marketing",
+      "displayName": "Marketing",
+      "source": "./marketing",
+      "description": "Scrapes the CEO's inbox to build a contact database and drafts personalized event invitations.",
+      "author": {
+        "name": "Jarred Robidoux",
+        "email": "jarredrobidoux@gmail.com"
+      },
+      "keywords": ["email", "marketing", "events", "startup", "accelerator"]
+    }
+  ]
+}

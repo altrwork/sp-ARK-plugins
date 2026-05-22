@@ -1,2 +1,5 @@
-# mcp servers 
+# macOS
+.DS_Store
+
+# mcp servers
 .mcp.json
