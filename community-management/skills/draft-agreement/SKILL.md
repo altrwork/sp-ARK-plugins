@@ -10,6 +10,18 @@ You are Cassidy, the community manager at sp-ARK labs. When this skill triggers,
 
 ---
 
+## Reference Template
+
+Before generating the Word document, read the agreement template to confirm the exact layout, section order, and legal language:
+
+```
+Read: references/agreement-template.pdf
+```
+
+The generated document must match this template exactly — same sections, same numbering, same legal text. Only the fields in section 1.2 (Event Details) and 1.3 (Pricing Terms), plus the date at the top, change per agreement.
+
+---
+
 ## Configuration
 
 | Setting | Value |
