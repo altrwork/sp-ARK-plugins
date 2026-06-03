@@ -17,19 +17,17 @@ Output:
 import sys
 import json
 import os
-import re
+import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
 try:
-    from pypdf import PdfReader, PdfWriter
-    from pypdf.generic import NameObject, create_string_object
+    import fitz  # pymupdf
 except ImportError:
-    print("Installing pypdf...")
-    os.system("pip install pypdf --quiet --break-system-packages")
-    from pypdf import PdfReader, PdfWriter
-    from pypdf.generic import NameObject, create_string_object
+    print("Installing pymupdf...")
+    os.system("pip install pymupdf --quiet --break-system-packages")
+    import fitz
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -38,11 +36,9 @@ def excel_serial_to_date(serial) -> str:
     """Convert an Excel date serial number to a readable string like 'May 29, 2026'."""
     try:
         serial = float(serial)
-        # Excel's epoch is Dec 30, 1899
         dt = datetime(1899, 12, 30) + timedelta(days=serial)
         return dt.strftime("%B %d, %Y")
     except (ValueError, TypeError):
-        # Already a readable string — return as-is
         return str(serial)
 
 
@@ -58,13 +54,11 @@ def format_time(raw: str) -> str:
     """Convert 24h time string like '13:00' to '1:00 PM', leave '10:00' as '10:00 AM'."""
     try:
         raw = str(raw).strip()
-        # Already has AM/PM
         if "AM" in raw.upper() or "PM" in raw.upper():
             return raw
         parts = raw.split(":")
         hour = int(parts[0])
         minute = parts[1] if len(parts) > 1 else "00"
-        # Hours 1-6 without AM/PM context are almost always PM for event times
         if hour < 12:
             period = "PM" if 1 <= hour <= 6 else "AM"
         else:
@@ -77,36 +71,24 @@ def format_time(raw: str) -> str:
         return str(raw)
 
 
-def normalize_field_fonts(writer: PdfWriter) -> None:
-    """Set all form field /DA strings to use Helvetica at size 0 (auto-fit).
-
-    PDF viewers honour a font size of 0 in the Default Appearance (/DA) string
-    by shrinking the text to fit the field bounds, preventing text cut-off.
-    Removing cached appearance streams (/AP) forces the viewer to redraw each
-    field with the new settings.
-    """
-    for page in writer.pages:
-        if "/Annots" not in page:
-            continue
-        for annot_ref in page["/Annots"]:
-            annot = annot_ref.get_object()
-            if annot.get("/Subtype") == "/Widget":
-                da = annot.get("/DA", "")
-                if da:
-                    # Replace any fixed font size (e.g. "12 Tf") with auto-size "0 Tf"
-                    new_da = re.sub(r'[\d.]+\s+Tf', '0 Tf', str(da))
-                    annot[NameObject("/DA")] = create_string_object(new_da)
-                # Remove cached appearance stream so viewer regenerates with new /DA
-                if "/AP" in annot:
-                    del annot["/AP"]
+def fit_fontsize(text: str, field_width: float, max_size: float = 12.0) -> float:
+    """Return the largest font size where text fits within field_width.
+    Uses 0.65x font size as a conservative average character width."""
+    if not text:
+        return max_size
+    return min(field_width / (len(text) * 0.65), max_size)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def fill_agreement(data: dict, template_path: str, output_path: str):
-    """Fill the PDF template with the provided data dict and write to output_path."""
+    """Fill the PDF template with the provided data dict and write to output_path.
 
-    # Build the field value map
+    Uses pymupdf (fitz) to generate proper appearance streams so text renders
+    correctly in all viewers (including macOS Preview). Font size is auto-fitted
+    per field so long values like email addresses are never clipped.
+    """
+
     field_values = {
         "date_created":         datetime.today().strftime("%B %d, %Y"),
         "business_name":        str(data.get("business_name", "")),
@@ -124,23 +106,22 @@ def fill_agreement(data: dict, template_path: str, output_path: str):
         "total_due":            "",
     }
 
-    reader = PdfReader(template_path)
-    writer = PdfWriter()
-    writer.append(reader)
+    # Write to a temp path first (pymupdf can't overwrite an open file)
+    tmp_path = output_path + ".tmp.pdf"
 
-    # Fill fields across all pages
-    for page_num in range(len(writer.pages)):
-        writer.update_page_form_field_values(
-            writer.pages[page_num],
-            field_values,
-            auto_regenerate=False,
-        )
+    doc = fitz.open(template_path)
+    for page in doc:
+        for widget in page.widgets():
+            name = widget.field_name
+            if name in field_values:
+                value = field_values[name]
+                widget.field_value = value
+                widget.text_fontsize = fit_fontsize(value, widget.rect.width)
+                widget.update()
 
-    # Normalize all field fonts to Helvetica auto-size so text never gets cut off
-    normalize_field_fonts(writer)
-
-    with open(output_path, "wb") as f:
-        writer.write(f)
+    doc.save(tmp_path)
+    doc.close()
+    shutil.move(tmp_path, output_path)
 
     print(f"✅ Agreement generated: {output_path}")
     print(f"   Company:    {field_values['business_name']}")
@@ -162,7 +143,6 @@ if __name__ == "__main__":
         print(f"❌ Invalid JSON: {e}")
         sys.exit(1)
 
-    # Template lives in the same directory as this script
     script_dir = Path(__file__).parent
     template = str(script_dir / "sp-ark_event_template.pdf")
     output = "/home/claude/filled_agreement.pdf"

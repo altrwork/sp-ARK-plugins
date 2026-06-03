@@ -66,16 +66,18 @@ Wait for the user to pick by number or by name. If they name a company that matc
 
 ## Step 3 — Run the fill script
 
-Once the user has picked a submission, run the Python script `fill_agreement.py` from the references directory sp-ARK-plugins/community-management/skills/draft-agreement/references/fill_agreement.py, passing the submission data as a JSON argument.
+Once the user has picked a submission, run `fill_agreement.py` from the same references directory as this skill, passing the submission data as a JSON argument.
 
-**Important: convert the Event Date before passing it.**
+**Important: pass the raw Excel date serial — the script converts it automatically.**
 
-Excel stores dates as serial numbers (days since 1899-12-30). Example: `46171` → `2026-05-29`. The script handles this conversion automatically — just pass the raw value from the workbook.
+Excel stores dates as serial numbers (days since 1899-12-30). Example: `46171` → `May 29, 2026`.
+
+**The script uses `pymupdf` (fitz) to fill the PDF.** It auto-sizes the font in each field so all text fits regardless of length — do not use pypdf for this task. If pymupdf is not installed, the script installs it automatically.
 
 Run the script like this:
 
 ```bash
-python /path/to/skill/fill_agreement.py '{
+python /path/to/skill/references/fill_agreement.py '{
   "business_name": "Robidoux LLC",
   "event_representative": "Jarred Robidoux",
   "phone_number": "4846315985",
@@ -88,19 +90,27 @@ python /path/to/skill/fill_agreement.py '{
 }'
 ```
 
-The script outputs the filled PDF to `/home/claude/filled_agreement.pdf`.
+**Important — path resolution in the sandbox:**
+The references folder is at `/sessions/quirky-serene-pascal/mnt/.remote-plugins/plugin_01VPim7t9neYFbxTZF1ry9uh/skills/event-request/references/`. Since this is read-only, run the script by importing it as a module inline rather than calling it directly:
+
+```python
+import sys
+sys.path.insert(0, '/sessions/quirky-serene-pascal/.local/lib/python3.10/site-packages')
+sys.path.insert(0, '/path/to/references')
+import fill_agreement as fa
+
+fa.fill_agreement(data_dict, template_path, output_path)
+```
+
+Set `output_path` to a writable location such as `/sessions/quirky-serene-pascal/mnt/outputs/filled_agreement_<company>.pdf`. Use `shutil.move` if saving to a path that already exists.
+
+The template PDF lives at: `references/sp-ark event template.pdf` (note the spaces in the filename).
 
 ---
 
 ## Step 4 — Present the PDF
 
-Use `present_files` to deliver the filled PDF to the user:
-
-```
-/home/claude/filled_agreement.pdf
-```
-
-Tell the user: "Here is the filled Event Rental Agreement for [Company Name]. The agreement date has been set to today."
+Use `present_files` to deliver the filled PDF to the user. Tell the user: "Here is the filled Event Rental Agreement for [Company Name]. The agreement date has been set to today."
 
 ---
 
@@ -115,7 +125,7 @@ Tell the user: "Here is the filled Event Rental Agreement for [Company Name]. Th
 
 ## Important notes
 
-- `agreement_date` is always set to today's date by the fill script automatically — do not ask the user for it.
+- `date_created` is always set to today's date by the fill script automatically — do not ask the user for it.
 - `price`, `additional_fees`, and `total_due` are left blank in V1 — sp-ARK fills these manually after the agreement is generated.
 - The signature blocks at the bottom of page 3 are intentionally left blank — they are hand-signed.
-- Do not modify the PDF template path. It lives at the same directory as this SKILL.md file.
+- Do not modify the PDF template. It lives in the references directory alongside fill_agreement.py.
