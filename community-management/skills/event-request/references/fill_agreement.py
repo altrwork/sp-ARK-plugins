@@ -17,16 +17,19 @@ Output:
 import sys
 import json
 import os
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
 try:
     from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import NameObject, create_string_object
 except ImportError:
     print("Installing pypdf...")
     os.system("pip install pypdf --quiet --break-system-packages")
     from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import NameObject, create_string_object
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -74,6 +77,30 @@ def format_time(raw: str) -> str:
         return str(raw)
 
 
+def normalize_field_fonts(writer: PdfWriter) -> None:
+    """Set all form field /DA strings to use Helvetica at size 0 (auto-fit).
+
+    PDF viewers honour a font size of 0 in the Default Appearance (/DA) string
+    by shrinking the text to fit the field bounds, preventing text cut-off.
+    Removing cached appearance streams (/AP) forces the viewer to redraw each
+    field with the new settings.
+    """
+    for page in writer.pages:
+        if "/Annots" not in page:
+            continue
+        for annot_ref in page["/Annots"]:
+            annot = annot_ref.get_object()
+            if annot.get("/Subtype") == "/Widget":
+                da = annot.get("/DA", "")
+                if da:
+                    # Replace any fixed font size (e.g. "12 Tf") with auto-size "0 Tf"
+                    new_da = re.sub(r'[\d.]+\s+Tf', '0 Tf', str(da))
+                    annot[NameObject("/DA")] = create_string_object(new_da)
+                # Remove cached appearance stream so viewer regenerates with new /DA
+                if "/AP" in annot:
+                    del annot["/AP"]
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def fill_agreement(data: dict, template_path: str, output_path: str):
@@ -81,20 +108,20 @@ def fill_agreement(data: dict, template_path: str, output_path: str):
 
     # Build the field value map
     field_values = {
-        "date_created":       datetime.today().strftime("%B %d, %Y"),
-        "business_name":      str(data.get("business_name", "")),
+        "date_created":         datetime.today().strftime("%B %d, %Y"),
+        "business_name":        str(data.get("business_name", "")),
         "event_representative": str(data.get("event_representative", "")),
-        "phone_number":       format_phone(data.get("phone_number", "")),
-        "email":              str(data.get("email", "")),
-        "event_type":         str(data.get("event_type", "")),
-        "event_date":         excel_serial_to_date(data.get("event_date", "")),
-        "event_start_time":   format_time(data.get("event_start_time", "")),
-        "event_end_time":     format_time(data.get("event_end_time", "")),
-        "number_of_attendees": str(data.get("attendee_count", "")),
+        "phone_number":         format_phone(data.get("phone_number", "")),
+        "email":                str(data.get("email", "")),
+        "event_type":           str(data.get("event_type", "")),
+        "event_date":           excel_serial_to_date(data.get("event_date", "")),
+        "event_start_time":     format_time(data.get("event_start_time", "")),
+        "event_end_time":       format_time(data.get("event_end_time", "")),
+        "number_of_attendees":  str(data.get("attendee_count", "")),
         # V1: left blank intentionally — sp-ARK fills manually
-        "price":              "",
-        "additional_fees":    "",
-        "total_due":          "",
+        "price":                "",
+        "additional_fees":      "",
+        "total_due":            "",
     }
 
     reader = PdfReader(template_path)
@@ -108,6 +135,9 @@ def fill_agreement(data: dict, template_path: str, output_path: str):
             field_values,
             auto_regenerate=False,
         )
+
+    # Normalize all field fonts to Helvetica auto-size so text never gets cut off
+    normalize_field_fonts(writer)
 
     with open(output_path, "wb") as f:
         writer.write(f)
