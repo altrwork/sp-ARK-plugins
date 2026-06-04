@@ -14,6 +14,9 @@ const region = process.env.VERKADA_REGION || "api";
 const defaultAccessGroupId = process.env.VERKADA_DEFAULT_ACCESS_GROUP_ID || "";
 const dryRun = process.env.VERKADA_DRY_RUN !== "false";
 
+let cachedSessionToken = null;
+let tokenExpiresAt = 0;
+
 function baseUrl() {
   return `https://${region}.verkada.com`;
 }
@@ -44,17 +47,44 @@ function jsonResponse(payload) {
   };
 }
 
+async function getSessionToken() {
+  if (cachedSessionToken && Date.now() < tokenExpiresAt) {
+    return cachedSessionToken;
+  }
+
+  const response = await fetch(`${baseUrl()}/token`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "x-api-key": apiKey,
+    },
+  });
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.token) {
+    throw new Error(
+      JSON.stringify({ status: response.status, body, message: "Failed to obtain Verkada session token" })
+    );
+  }
+
+  cachedSessionToken = body.token;
+  tokenExpiresAt = Date.now() + 25 * 60 * 1000; // 25 min (tokens last 30 min)
+  return cachedSessionToken;
+}
+
 async function request(path, options = {}) {
   if (!apiKey) {
     throw new Error("VERKADA_API_KEY is not configured.");
   }
+
+  const token = await getSessionToken();
 
   const response = await fetch(`${baseUrl()}${path}`, {
     ...options,
     headers: {
       accept: "application/json",
       "content-type": "application/json",
-      "x-verkada-auth": apiKey,
+      "x-verkada-auth": token,
       ...(options.headers || {}),
     },
   });
