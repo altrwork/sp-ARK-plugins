@@ -1,0 +1,12 @@
+{
+  "name": "sp-ark-operations",
+  "displayName": "Operations",
+  "version": "0.1.0",
+  "description": "Operations agent for sp-ARK Labs. Onboards new members across agreements, building access, member portal access, and Slack.",
+  "author": {
+    "name": "Jarred Robidoux",
+    "email": "jarredrobidoux@gmail.com"
+  },
+  "keywords": ["new member onboarding", "operations", "member access", "coworking", "slack"],
+  "skills": "./skills/"
+}

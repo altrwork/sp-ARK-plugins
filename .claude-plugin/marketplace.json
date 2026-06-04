@@ -27,6 +27,17 @@
         "email": "jarredrobidoux@gmail.com"
       },
       "keywords": ["email", "marketing", "events", "startup", "accelerator"]
+    },
+    {
+      "name": "sp-ark-operations",
+      "displayName": "Operations",
+      "source": "./operations",
+      "description": "Onboards new sp-ARK Labs members across agreements, access control, member portal access, and Slack.",
+      "author": {
+        "name": "Jarred Robidoux",
+        "email": "jarredrobidoux@gmail.com"
+      },
+      "keywords": ["operations", "new member onboarding", "access control", "coworking", "startup", "accelerator"]
     }
   ]
 }

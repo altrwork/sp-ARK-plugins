@@ -33,6 +33,16 @@ sp-ARK-plugins/
 │   └── skills/
 │       ├── inbox-scraper/            # /scrape-inbox behavior
 │       └── draft-invites/            # /draft-invites behavior
+├── operations/                       # Plugin: operations workflows
+│   ├── .claude-plugin/plugin.json
+│   ├── .mcp.json                     # Microsoft 365 MCP server config
+│   ├── CONNECTORS.md                 # New member onboarding connector plan
+│   ├── mcp-servers/
+│   │   ├── bosshub/                  # Custom BossHub/LeadConnector form intake MCP server
+│   │   ├── nexudus/                  # Custom Nexudus MCP server spec
+│   │   └── verkada/                  # Custom Verkada MCP server spec
+│   └── skills/
+│       └── new-member-onboarding/    # New member onboarding behavior + references
 └── community-management/             # Plugin: community operations
     ├── .claude-plugin/plugin.json
     ├── .mcp.json                     # Microsoft 365 MCP server config
@@ -109,15 +119,57 @@ The event agreement skill currently reads a hardcoded Forms-synced OneDrive work
 - Drive Item ID: `016SA4FQPXEB5DHBW5ERDZSFUAIRZWY6HS`
 - Worksheet: `Sheet1`
 
+### `sp-ark-operations` (`operations/`)
+
+Operations workflows for onboarding new sp-ARK Labs members from BossHub/LeadConnector inquiries across agreements, building access, member portal access, and Outlook-drafted Slack invite emails.
+
+**Skills:**
+
+- `new-member-onboarding` - invoked manually as `/new-member-onboarding [member name or email]`; reads one BossHub/LeadConnector member inquiry submission, confirms details with the operator, then coordinates DocuSign, Verkada, Nexudus, and an Outlook draft email for the Slack invite.
+
+**Connectors:**
+
+- BossHub/LeadConnector reads member inquiry form submissions through the custom BossHub MCP server.
+- Microsoft 365 (`ms365`) drafts the Slack invite email from Outlook.
+- DocuSign uses Claude's prebuilt DocuSign connector with the exported template JSON in `operations/skills/new-member-onboarding/references/spARKLabsNewMemberTemplate.json`.
+- Verkada and Nexudus require custom MCP servers that live inside this repo under `operations/mcp-servers/`.
+
+Current BossHub form:
+
+```
+https://api.bosshub.ai/widget/form/Ftg5p93SEeTnUWiyAgYn
+```
+
+BossHub/LeadConnector API details:
+
+- Location ID: `jqh6rxfWtvMIQCKxcDlc`
+- Form ID: `Ftg5p93SEeTnUWiyAgYn`
+- API version header: `2023-02-21`
+- Required token scope: `forms.readonly`
+- Store token locally as `BOSSHUB_ACCESS_TOKEN`; never commit it.
+
+DocuSign template:
+
+- Template ID: `8772e4f2-e427-4f4d-828f-69cfa69fd779`
+- Roles: `Founder` then `ARK`
+- Agent-prefilled tabs use stable `snake_case` data labels and locked agreement/pricing fields.
+
+Open setup items:
+
+- Verkada API key via environment variable, target all-access group ID, and whether Verkada Pass / remote unlock are API-configurable.
+- Nexudus API key, business/location ID, and plan source from DocuSign.
+- Slack invite email recipient and default channel list.
+
 ## Important Implementation Notes
 
 - Keep plugin manifests in each plugin's `.claude-plugin/plugin.json`.
 - Keep marketplace metadata in root `.claude-plugin/marketplace.json`.
-- The root marketplace currently exposes `sp-ark-community` and `sp-ark-marketing`.
+- The root marketplace currently exposes `sp-ark-community`, `sp-ark-marketing`, and `sp-ark-operations`.
 - Prefer updating skill instructions in `SKILL.md` instead of adding code unless the workflow needs local file generation or structured file manipulation.
 - Keep generated/reference assets close to the skill that uses them.
 - Use ASCII filenames where practical. Existing reference names with spaces should be preserved unless a rename is part of the task.
 - Do not commit `.DS_Store` or other local OS artifacts.
+- Do not commit local planning notes such as `questions.md`; it is ignored intentionally.
 
 ## Adding a New Skill
 

@@ -1,5 +1,13 @@
 # macOS
 .DS_Store
 
+# Node dependencies
+node_modules/
+
+# Local secrets
+.env
+.env.*
+questions.md
+
 # mcp servers (root-level only — plugin .mcp.json files should be committed)
 /.mcp.json
