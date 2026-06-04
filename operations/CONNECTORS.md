@@ -1,13 +1,13 @@
 # Connectors
 
-The Operations plugin coordinates new member onboarding across BossHub/LeadConnector, Microsoft 365, DocuSign, Verkada, Nexudus, and Outlook-drafted Slack invite emails.
+The Operations plugin coordinates new member onboarding across BossHub/LeadConnector, Microsoft 365, DocuSign, Verkada, Nexudus, and Outlook-drafted Slack invite emails to members.
 
 ## Required Connectors
 
 | Connector | Service | Purpose | Status |
 |---|---|---|---|
 | BossHub | BossHub / LeadConnector / HighLevel | Read new member inquiry form submissions | Custom MCP server scaffolded in this marketplace |
-| `ms365` | Microsoft 365 / Outlook | Draft the Slack invite email | Reuse existing Microsoft 365 MCP pattern |
+| `ms365` | Microsoft 365 / Outlook | Draft the Slack invite email to the member | Reuse existing Microsoft 365 MCP pattern |
 | DocuSign | DocuSign | Send the onboarding agreement | Use Claude's prebuilt DocuSign connector after creating the template/workflow from Edwin's Word document |
 | Verkada | Verkada Command | Create access users and assign access groups | Custom MCP server scaffolded in this marketplace |
 | Nexudus | Nexudus | Add member portal/booking access | Custom MCP server scaffolded in this marketplace |
@@ -61,6 +61,8 @@ npx @softeria/ms-365-mcp-server --login
 ```
 
 Microsoft 365 is currently used for Outlook draft email creation, not form intake.
+
+Slack invite draft emails should be addressed directly to the member email from the BossHub form.
 
 ## DocuSign
 
@@ -193,10 +195,21 @@ Pending configuration:
 
 ## Slack Invite Email
 
-Edwin currently emails another person to invite the new member to Slack. V1 should draft this email in Outlook through Microsoft 365 instead of using a Slack connector.
+V1 should draft a Slack invite email in Outlook through Microsoft 365 instead of using a Slack connector.
+
+Slack invite link:
+
+```text
+https://sparklabsbyarkinvest.slack.com/join/invite/enQtMTEyODExNTY5NjQ3NzQtNjI3NDg3YTkxMzllODcwZDkxNDg2YWRiOTNkZjNjMDUwMmNhZTdkNDY1MDQ5ZmFlYWFhYjBiNzMxMTRlYTZlNQ#/email-invite/credentials
+```
+
+Draft behavior:
+
+- To: member email from the BossHub form
+- Body: short welcome note plus the Slack invite link
+- Send behavior: save as draft only unless the user explicitly asks to send
 
 Pending configuration:
 
-- Email recipient who handles Slack invites
 - Default Slack channel list, if any
 - Preferred email subject/body wording

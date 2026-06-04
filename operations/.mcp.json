@@ -6,6 +6,34 @@
       "env": {
         "MS365_MCP_OUTPUT_FORMAT": "toon"
       }
+    },
+    "bosshub": {
+      "command": "node",
+      "args": ["operations/mcp-servers/bosshub/src/index.js"],
+      "env": {
+        "BOSSHUB_ACCESS_TOKEN": "${BOSSHUB_ACCESS_TOKEN}",
+        "BOSSHUB_LOCATION_ID": "jqh6rxfWtvMIQCKxcDlc",
+        "BOSSHUB_FORM_ID": "Ftg5p93SEeTnUWiyAgYn",
+        "BOSSHUB_API_VERSION": "2023-02-21"
+      }
+    },
+    "verkada": {
+      "command": "node",
+      "args": ["operations/mcp-servers/verkada/src/index.js"],
+      "env": {
+        "VERKADA_API_KEY": "${VERKADA_API_KEY}",
+        "VERKADA_REGION": "api",
+        "VERKADA_DRY_RUN": "true"
+      }
+    },
+    "nexudus": {
+      "command": "node",
+      "args": ["operations/mcp-servers/nexudus/src/index.js"],
+      "env": {
+        "NEXUDUS_ACCESS_TOKEN": "${NEXUDUS_ACCESS_TOKEN}",
+        "NEXUDUS_BUSINESS_ID": "${NEXUDUS_BUSINESS_ID}",
+        "NEXUDUS_DRY_RUN": "true"
+      }
     }
   }
 }

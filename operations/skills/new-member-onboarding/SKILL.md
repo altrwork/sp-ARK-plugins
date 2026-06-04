@@ -1,6 +1,6 @@
 ---
 name: new-member-onboarding
-description: Onboard one new sp-ARK Labs member from a BossHub/LeadConnector form submission. Use when Edwin or another operator wants to manually start new member onboarding, review one pending member inquiry, send the agreement through DocuSign, add building access in Verkada, add member portal access in Nexudus, and draft the Slack invite email in Outlook.
+description: Onboard one new sp-ARK Labs member from a BossHub/LeadConnector form submission. Use when Edwin or another operator wants to manually start new member onboarding, review one pending member inquiry, send the agreement through DocuSign, add building access in Verkada, add member portal access in Nexudus, and draft an Outlook email to the member with the Slack invite link.
 argument-hint: "[member name or email]"
 ---
 
@@ -11,7 +11,7 @@ You are helping sp-ARK Labs operations onboard one new member at a time. This is
 ## Required Connectors
 
 - BossHub / LeadConnector connector for reading new member inquiry form submissions.
-- Microsoft 365 (`ms365`) for Outlook draft email creation.
+- Microsoft 365 (`ms365`) for Outlook draft email creation with the Slack invite link.
 - DocuSign connector for sending the onboarding agreement once the Word document is converted into a DocuSign template/workflow.
 - Verkada connector for creating the access user and assigning access.
 - Nexudus connector for adding the member so they can book rooms and see availability.
@@ -92,7 +92,7 @@ Planned actions:
 - Send DocuSign agreement
 - Add Verkada access user and access group
 - Add Nexudus member access
-- Draft Outlook email for Slack channel invite
+- Draft Outlook email to the member with the Slack invite link
 
 Proceed?
 ```
@@ -101,26 +101,49 @@ Wait for explicit confirmation before creating, sending, or inviting anything.
 
 ### Step 4 - Send DocuSign agreement
 
-Use the DocuSign connector to send the onboarding agreement.
+Use the DocuSign connector to send the onboarding agreement from the configured template.
 
-The source Word document is:
+**Template ID:** `8772e4f2-e427-4f4d-828f-69cfa69fd779`
+**Roles:** `Founder` (routing order 1) → `ARK` (routing order 2)
 
-```text
-operations/skills/new-member-onboarding/references/spARK Membership Agreement Template.docx
-```
+Call `createEnvelopeFromTemplate`. Override the `Founder` role recipient:
+- Name: `[first_name] [last_name]`
+- Email: `[email]`
 
-V1 setup is pending. The DocuSign template/workflow still needs to be created from the Word document. If no DocuSign template or envelope instructions are available, do not guess. Report:
+Do not override the `ARK` role recipient — leave it as configured in the template.
 
-```
-DocuSign is blocked: Edwin still needs to provide the DocuSign template or sending instructions.
-```
+**Pre-fill all locked tabs before sending.** Locked tabs appear on the document but cannot be edited by the signer.
 
-When configured, use:
-- Recipient name: `[first name] [last name]`
-- Recipient email: `[email]`
-- Company name: `[company_name]`
-- Membership type: `[interested_membership_option]`
-- Membership start date: `[desired_start_date]`
+Tabs on the `Founder` role — map directly from BossHub data:
+
+| Tab label | Source field |
+|---|---|
+| `member_organization` | `company_name` |
+| `company_name` | `company_name` |
+| `member_representative` | `first_name` + `last_name` |
+| `registered_individuals` | `additional_workspace_users` |
+| `membership_type` | `interested_membership_option` |
+| `membership_start_date` | `desired_start_date` |
+| `membership_end_date` | Ask operator — not in BossHub form |
+| `membership_length` | Ask operator — derive from membership type or confirm directly |
+| `max_occupancy` | Ask operator — not in BossHub form |
+
+Tabs on the `ARK` role — pricing fields, ask operator before sending:
+
+| Tab label | Notes |
+|---|---|
+| `monthly_membership_price` | Base rate for the selected membership type |
+| `monthly_membership_qty` | Typically `1` |
+| `monthly_membership_subtotal` | `price × qty` |
+| `mail_service_price` | `0` if not selected; otherwise the monthly mail rate |
+| `mail_service_qty` | `0` or `1` |
+| `mail_service_subtotal` | `price × qty` |
+| `other_monthly_fees_price` | Any additional fees; `0` if none |
+| `other_monthly_fees_qty` | Quantity |
+| `other_monthly_fees_subtotal` | `price × qty` |
+| `total_monthly` | Sum of all three subtotals |
+
+If any pricing field is unknown, ask the operator before sending. Do not leave locked pricing fields blank.
 
 ### Step 5 - Add Verkada access
 
@@ -165,15 +188,21 @@ If company name or plan is not available from the workbook or completed agreemen
 
 ### Step 7 - Draft Slack invite email
 
-Use Microsoft 365 Outlook to draft an email from Edwin to the person who sends Slack channel invites.
+Use Microsoft 365 Outlook to draft an email from Edwin directly to `[email]` with the Slack workspace invite link.
+
+Slack invite link:
+
+```text
+https://sparklabsbyarkinvest.slack.com/join/invite/enQtMTEyODExNTY5NjQ3NzQtNjI3NDg3YTkxMzllODcwZDkxNDg2YWRiOTNkZjNjMDUwMmNhZTdkNDY1MDQ5ZmFlYWFhYjBiNzMxMTRlYTZlNQ#/email-invite/credentials
+```
 
 The draft should include:
 
 - New member name: `[first name] [last name]`
-- New member email: `[email]`
-- Slack channel or channels to invite them to, if configured
+- The Slack invite link
+- A short note that they should use the email address submitted in the member inquiry form
 
-If the recipient or channel list is not configured, draft what is known and leave a clear placeholder in the email body for Edwin to fill before sending.
+Save the message as a draft. Do not send automatically unless the user explicitly asks.
 
 ### Step 8 - Report results
 
@@ -198,6 +227,6 @@ Notes:
 
 - Process one member per run.
 - Do not provision access until the user confirms the reviewed member details.
-- Do not guess DocuSign template IDs, Verkada access group IDs, Nexudus plans, Slack channels, or the Slack invite email recipient.
+- Do not guess DocuSign template IDs, Verkada access group IDs, Nexudus plans, or Slack channels.
 - If a write action fails, continue to the remaining independent systems and report the failure clearly.
 - Treat duplicate detection as best effort by email address.
