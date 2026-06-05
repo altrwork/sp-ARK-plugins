@@ -54,13 +54,11 @@ Write these values to `.env.local` in the working directory once Edwin provides 
 
 ## Step 3 — Authorize Microsoft 365
 
-Microsoft 365 is used to draft the Slack invite email in Outlook. Run the following login command, which will open a browser window for Edwin to sign in with his Microsoft 365 account:
+Microsoft 365 is used to draft the Slack invite email in Outlook. The Microsoft 365 MCP server is bundled in the plugin — no terminal command is needed.
 
-```bash
-npx @softeria/ms-365-mcp-server --login
-```
+Call the `login` tool on the `ms365` MCP server. It will open Edwin's system browser for a Microsoft sign-in. Edwin signs in with his sp-ARK Microsoft 365 account. The auth token is stored locally — no credentials are saved in the project files.
 
-Edwin signs in with his sp-ARK Microsoft 365 account. This stores a local auth token — no credentials are saved in the project files.
+After the browser sign-in completes, call `verify-login` to confirm the session is active.
 
 ---
 
