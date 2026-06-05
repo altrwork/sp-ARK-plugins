@@ -8,8 +8,8 @@
       }
     },
     "bosshub": {
-      "command": "sh",
-      "args": ["-c", "[ -d mcp-servers/bosshub/node_modules ] || npm --prefix mcp-servers/bosshub ci --silent; node mcp-servers/bosshub/src/index.js"],
+      "command": "node",
+      "args": ["mcp-servers/bosshub/bundle.js"],
       "env": {
         "BOSSHUB_ACCESS_TOKEN": "${BOSSHUB_ACCESS_TOKEN}",
         "BOSSHUB_LOCATION_ID": "jqh6rxfWtvMIQCKxcDlc",
@@ -18,8 +18,8 @@
       }
     },
     "verkada": {
-      "command": "sh",
-      "args": ["-c", "[ -d mcp-servers/verkada/node_modules ] || npm --prefix mcp-servers/verkada ci --silent; node mcp-servers/verkada/src/index.js"],
+      "command": "node",
+      "args": ["mcp-servers/verkada/bundle.js"],
       "env": {
         "VERKADA_API_KEY": "${VERKADA_API_KEY}",
         "VERKADA_REGION": "api",
@@ -27,8 +27,8 @@
       }
     },
     "nexudus": {
-      "command": "sh",
-      "args": ["-c", "[ -d mcp-servers/nexudus/node_modules ] || npm --prefix mcp-servers/nexudus ci --silent; node mcp-servers/nexudus/src/index.js"],
+      "command": "node",
+      "args": ["mcp-servers/nexudus/bundle.js"],
       "env": {
         "NEXUDUS_USERNAME": "${NEXUDUS_USERNAME}",
         "NEXUDUS_PASSWORD": "${NEXUDUS_PASSWORD}",

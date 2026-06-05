@@ -6,6 +6,9 @@
   "bin": {
     "sp-ark-verkada-mcp": "./src/index.js"
   },
+  "scripts": {
+    "build": "npx esbuild src/index.js --bundle --platform=node --format=esm --outfile=bundle.js"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.13.0",
     "zod": "^3.25.0"
