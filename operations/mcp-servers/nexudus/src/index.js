@@ -146,56 +146,49 @@ async function request(path, options = {}) {
 
 server.tool(
   "nexudus_find_person",
-  "Find a Nexudus person/customer/member/contact by email.",
+  "Find a Nexudus coworker/member by email address.",
   {
     email: z.string().email(),
   },
   async ({ email }) => {
     const missing = missingConfig();
     if (missing.length) {
-      return jsonResponse(
-        blocked("Nexudus API configuration is incomplete.", {
-          missing,
-          email,
-        })
-      );
+      return jsonResponse(blocked("Nexudus API configuration is incomplete.", { missing, email }));
     }
 
-    return jsonResponse(
-      blocked("Nexudus lookup endpoint is pending account-specific API confirmation.", {
-        email,
-      })
+    const result = await request(
+      `/api/spaces/coworkers?Coworker_Email=${encodeURIComponent(email)}&size=5`
     );
+
+    const records = result.Records || [];
+    if (records.length === 0) {
+      return jsonResponse(ok({ found: false, email, coworker: null }));
+    }
+
+    return jsonResponse(ok({ found: true, coworker: records[0] }));
   }
 );
 
 server.tool(
   "nexudus_create_person",
-  "Create the Nexudus person record needed for booking access.",
+  "Create a Nexudus coworker (member) with a plan assigned. tariff_id must be provided — look up the correct ID from the plan mapping table in SKILL.md.",
   {
     first_name: z.string().min(1),
     last_name: z.string().min(1),
     email: z.string().email(),
-    person_type: z.enum(["member", "contact"]).optional(),
+    company_name: z.string().optional(),
+    tariff_id: z.number().int().positive(),
   },
-  async ({ first_name, last_name, email, person_type }) => {
-    const resolvedPersonType = person_type || personType;
+  async ({ first_name, last_name, email, company_name, tariff_id }) => {
     const payload = {
-      first_name,
-      last_name,
-      email,
-      person_type: resolvedPersonType,
-      business_id: businessId,
+      FullName: `${first_name} ${last_name}`,
+      Email: email,
+      CompanyName: company_name || "",
+      BusinessId: parseInt(businessId, 10),
+      TariffId: tariff_id,
+      CountryId: 1221,
+      SimpleTimeZoneId: 2013,
     };
-
-    if (!resolvedPersonType) {
-      return jsonResponse(
-        blocked("Nexudus person type is not configured. Edwin must confirm member or contact.", {
-          payload,
-          required_env: "NEXUDUS_PERSON_TYPE",
-        })
-      );
-    }
 
     const missing = missingConfig();
     if (missing.length) {
@@ -204,65 +197,49 @@ server.tool(
 
     if (dryRun) {
       return jsonResponse(
-        blocked("NEXUDUS_DRY_RUN is enabled. Set NEXUDUS_DRY_RUN=false after endpoint confirmation.", {
+        blocked("NEXUDUS_DRY_RUN is enabled. Set NEXUDUS_DRY_RUN=false to create coworkers.", {
           payload,
         })
       );
     }
 
-    return jsonResponse(
-      blocked("Nexudus create endpoint is pending account-specific API confirmation.", {
-        payload,
-      })
-    );
+    const result = await request("/api/spaces/coworkers", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    return jsonResponse(ok({ coworker: result }));
   }
 );
 
 server.tool(
   "nexudus_assign_booking_access",
-  "Assign the plan/product required for Nexudus room booking access.",
+  "Assign a different plan to an existing Nexudus coworker. Use nexudus_create_person with tariff_id instead when creating new coworkers.",
   {
-    person_id: z.string().min(1),
-    plan_id: z.string().optional(),
+    coworker_id: z.number().int().positive(),
+    tariff_id: z.number().int().positive(),
   },
-  async ({ person_id, plan_id }) => {
-    const resolvedPlanId = plan_id || defaultPlanId;
-
-    if (!resolvedPlanId) {
-      return jsonResponse(
-        blocked("No Nexudus booking access plan/product is configured.", {
-          person_id,
-          required_env: "NEXUDUS_DEFAULT_PLAN_ID",
-        })
-      );
-    }
-
+  async ({ coworker_id, tariff_id }) => {
     const missing = missingConfig();
     if (missing.length) {
-      return jsonResponse(
-        blocked("Nexudus API configuration is incomplete.", {
-          missing,
-          person_id,
-          plan_id: resolvedPlanId,
-        })
-      );
+      return jsonResponse(blocked("Nexudus API configuration is incomplete.", { missing }));
     }
 
     if (dryRun) {
       return jsonResponse(
-        blocked("NEXUDUS_DRY_RUN is enabled. Set NEXUDUS_DRY_RUN=false after endpoint confirmation.", {
-          person_id,
-          plan_id: resolvedPlanId,
+        blocked("NEXUDUS_DRY_RUN is enabled. Set NEXUDUS_DRY_RUN=false to assign plans.", {
+          coworker_id,
+          tariff_id,
         })
       );
     }
 
-    return jsonResponse(
-      blocked("Nexudus booking access endpoint is pending account-specific API confirmation.", {
-        person_id,
-        plan_id: resolvedPlanId,
-      })
-    );
+    const result = await request(`/api/spaces/coworkers/${coworker_id}`, {
+      method: "PUT",
+      body: JSON.stringify({ Id: coworker_id, TariffId: tariff_id }),
+    });
+
+    return jsonResponse(ok({ coworker: result }));
   }
 );
 

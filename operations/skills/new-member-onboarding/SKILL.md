@@ -169,22 +169,33 @@ If Verkada Pass or remote unlock cannot be set through the current MCP tools, cr
 Use the Nexudus connector tools:
 
 1. Call `nexudus_find_person` with `[email]`.
-2. If none exists, call `nexudus_create_person` for `[first name] [last name]` and `[email]`.
-3. If Edwin confirms a plan/product is required for booking access, call `nexudus_assign_booking_access`.
+2. If none exists, determine the correct plan using the table below, then call `nexudus_create_person` with `[first name] [last name]`, `[email]`, `[company_name]`, and the resolved `tariff_id`.
 
-V1 setup is pending until Edwin confirms whether the person should be created as a member or contact and whether a plan/product must be assigned for booking access. If this is not configured, do not guess. Mark Nexudus as blocked in the final summary.
+**Plan mapping — use `membership_type` from the confirmed DocuSign data to look up the Nexudus tariff ID. If the membership type does not map clearly to one plan, ask the operator to confirm before creating.**
 
-Known Edwin workflow in Nexudus:
+| Nexudus plan name | Tariff ID | Monthly price |
+|---|---|---|
+| Community | 1415300513 | $0 |
+| Coworking Micro Office | 1415291121 | $800 |
+| Coworking Private Office | 1415291214 | $1,100 |
+| Coworking Shed | 1415291215 | $1,200 |
+| Dedicated Member | 1415300514 | $0 |
+| Dedicated Suite | 1415291122 | $0 |
+| Executive | 1415300516 | $0 |
+| Fixed | 1415300510 | $400 |
+| Flex | 1415300509 | $300 |
+| Hotdesk | 1415291213 | $450 |
+| Large | 1415300388 | $2,500 |
+| Makers Space | 1415305630 | $0 |
+| Medium | 1415300508 | $1,500 |
+| Micro | 1415300506 | $850 |
+| Premium | 1415300515 | $0 |
+| Small | 1415300389 | $1,000 |
+| Team Member | 1415295148 | $0 |
 
-- Go to Operations -> Members -> Add Customer.
-- Customer Type: Company.
-- Enter Company Name, Email, and Person's Name.
-- Set identifier to Member.
-- Set Plan from the DocuSign agreement.
+**"Flex Desk" on the BossHub form maps to the Fixed plan (ID: `1415300510`, $400/mo).** If in doubt, ask Edwin to confirm the plan before creating the coworker.
 
 Nexudus auth note: Nexudus supports bearer tokens from `POST /api/token` with form-encoded username/password credentials. If a static access token is available, use it as `NEXUDUS_ACCESS_TOKEN`; otherwise the custom MCP server can exchange `NEXUDUS_USERNAME` and `NEXUDUS_PASSWORD` for a token.
-
-If company name or plan is not available from the workbook or completed agreement, do not guess. Mark Nexudus as blocked or partially blocked and identify the missing field.
 
 ### Step 7 - Draft Slack invite email
 
