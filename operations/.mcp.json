@@ -9,7 +9,7 @@
     },
     "bosshub": {
       "command": "node",
-      "args": ["operations/mcp-servers/bosshub/src/index.js"],
+      "args": ["mcp-servers/bosshub/src/index.js"],
       "env": {
         "BOSSHUB_ACCESS_TOKEN": "${BOSSHUB_ACCESS_TOKEN}",
         "BOSSHUB_LOCATION_ID": "jqh6rxfWtvMIQCKxcDlc",
@@ -19,20 +19,21 @@
     },
     "verkada": {
       "command": "node",
-      "args": ["operations/mcp-servers/verkada/src/index.js"],
+      "args": ["mcp-servers/verkada/src/index.js"],
       "env": {
         "VERKADA_API_KEY": "${VERKADA_API_KEY}",
         "VERKADA_REGION": "api",
-        "VERKADA_DRY_RUN": "true"
+        "VERKADA_DRY_RUN": "false"
       }
     },
     "nexudus": {
       "command": "node",
-      "args": ["operations/mcp-servers/nexudus/src/index.js"],
+      "args": ["mcp-servers/nexudus/src/index.js"],
       "env": {
-        "NEXUDUS_ACCESS_TOKEN": "${NEXUDUS_ACCESS_TOKEN}",
+        "NEXUDUS_USERNAME": "${NEXUDUS_USERNAME}",
+        "NEXUDUS_PASSWORD": "${NEXUDUS_PASSWORD}",
         "NEXUDUS_BUSINESS_ID": "${NEXUDUS_BUSINESS_ID}",
-        "NEXUDUS_DRY_RUN": "true"
+        "NEXUDUS_DRY_RUN": "false"
       }
     }
   }

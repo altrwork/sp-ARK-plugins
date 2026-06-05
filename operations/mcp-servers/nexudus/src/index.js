@@ -49,8 +49,8 @@ function jsonResponse(payload) {
 function missingConfig() {
   const missing = [];
   if (!apiBaseUrl) missing.push("NEXUDUS_API_BASE_URL");
-  if (!cachedAccessToken && (!username || !password)) {
-    missing.push("NEXUDUS_ACCESS_TOKEN or NEXUDUS_USERNAME/NEXUDUS_PASSWORD");
+  if (!accessToken && (!username || !password)) {
+    missing.push("NEXUDUS_USERNAME + NEXUDUS_PASSWORD (or NEXUDUS_ACCESS_TOKEN for one-off use)");
   }
   if (!businessId) missing.push("NEXUDUS_BUSINESS_ID");
   return missing;
@@ -103,14 +103,7 @@ async function getAccessToken() {
   return cachedAccessToken;
 }
 
-async function request(path, options = {}) {
-  const missing = missingConfig();
-  if (missing.length) {
-    throw new Error(`Missing Nexudus configuration: ${missing.join(", ")}`);
-  }
-
-  const token = await getAccessToken();
-
+async function doFetch(path, token, options = {}) {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...options,
     headers: {
@@ -131,14 +124,27 @@ async function request(path, options = {}) {
     }
   }
 
-  if (!response.ok) {
-    throw new Error(
-      JSON.stringify({
-        status: response.status,
-        statusText: response.statusText,
-        body,
-      })
-    );
+  return { status: response.status, ok: response.ok, body };
+}
+
+async function request(path, options = {}) {
+  const missing = missingConfig();
+  if (missing.length) {
+    throw new Error(`Missing Nexudus configuration: ${missing.join(", ")}`);
+  }
+
+  let token = await getAccessToken();
+  let { status, ok, body } = await doFetch(path, token, options);
+
+  if (status === 401) {
+    // Token expired — clear cache and retry once with fresh credentials
+    cachedAccessToken = "";
+    token = await getAccessToken();
+    ({ ok, body } = await doFetch(path, token, options));
+  }
+
+  if (!ok) {
+    throw new Error(JSON.stringify({ status, body }));
   }
 
   return body;
