@@ -2,7 +2,7 @@
   "mcpServers": {
     "ms365": {
       "command": "node",
-      "args": ["mcp-servers/ms365/dist/bundle.js", "--org-mode"],
+      "args": ["mcp-servers/ms365/dist/bundle.js", "--org-mode", "--auth-browser"],
       "env": {
         "MS365_MCP_OUTPUT_FORMAT": "toon"
       }
