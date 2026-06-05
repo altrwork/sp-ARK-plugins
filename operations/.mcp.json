@@ -30,8 +30,7 @@
       "command": "node",
       "args": ["mcp-servers/nexudus/bundle.js"],
       "env": {
-        "NEXUDUS_USERNAME": "${NEXUDUS_USERNAME}",
-        "NEXUDUS_PASSWORD": "${NEXUDUS_PASSWORD}",
+        "NEXUDUS_ACCESS_TOKEN": "${NEXUDUS_ACCESS_TOKEN}",
         "NEXUDUS_BUSINESS_ID": "${NEXUDUS_BUSINESS_ID}",
         "NEXUDUS_DRY_RUN": "false"
       }

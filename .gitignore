@@ -11,3 +11,6 @@ questions.md
 
 # mcp servers (root-level only — plugin .mcp.json files should be committed)
 /.mcp.json
+
+# setup.md
+SETUP.md
