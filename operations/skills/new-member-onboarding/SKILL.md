@@ -153,7 +153,7 @@ Use the Verkada connector tools:
 2. If none exists, call `verkada_create_access_user` for `[first name] [last name]` and `[email]`.
 3. Call `verkada_add_user_to_access_group` with the existing or created user and the configured access group.
 
-V1 setup is pending until Edwin provides an admin-enabled Verkada account/API key and the target access group name or ID. If the connector or access group is unavailable, do not attempt a partial access update. Mark Verkada as blocked in the final summary.
+Target access group: **All Access** (`1018efcf-5d11-4a3d-b01a-57bd8d3cd346`). If the connector or access group is unavailable, do not attempt a partial access update. Mark Verkada as blocked in the final summary.
 
 Known Edwin workflow in Verkada:
 
