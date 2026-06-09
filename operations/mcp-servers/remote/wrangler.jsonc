@@ -4,8 +4,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-03-10",
   "compatibility_flags": ["nodejs_compat"],
-  // Public *.workers.dev URL disabled (paused). Set back to true + redeploy to re-enable.
-  "workers_dev": false,
+  // Public *.workers.dev URL enabled. Set to false + redeploy to pause.
+  "workers_dev": true,
   "observability": {
     "enabled": true
   },
