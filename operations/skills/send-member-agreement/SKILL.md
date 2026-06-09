@@ -102,18 +102,28 @@ Some agreement fields cannot be derived from the BossHub submission. Ask Edwin f
 
 **Pricing fields (ARK role — locked tabs):**
 
-| Tab label | Notes |
+Derive `monthly_membership_price` automatically from `interested_membership_option` using this table:
+
+| BossHub form option | Monthly price |
 |---|---|
-| `monthly_membership_price` | Base rate for the selected membership type |
-| `monthly_membership_qty` | Typically `1` |
-| `monthly_membership_subtotal` | `price × qty` |
+| Flex Desk | $300 |
+| Fixed Desk | $400 |
+| Micro Office | $850 |
+| Small Office | $1,000 |
+| Medium Office | $1,500 |
+| Large Office | $2,500 |
+
+Set `monthly_membership_qty` to `1` and calculate `monthly_membership_subtotal` as `price × qty`.
+
+Only ask the operator for:
+
+| Field | Notes |
+|---|---|
 | `mail_service_price` | `0` if not selected; otherwise the monthly mail rate |
-| `mail_service_qty` | `0` or `1` |
-| `mail_service_subtotal` | `price × qty` |
 | `other_monthly_fees_price` | Any additional fees; `0` if none |
-| `other_monthly_fees_qty` | Quantity |
-| `other_monthly_fees_subtotal` | `price × qty` |
-| `total_monthly` | Sum of all three subtotals |
+| `other_monthly_fees_qty` | Quantity (only if `other_monthly_fees_price > 0`) |
+
+Set `mail_service_qty` to `0` or `1` to match whether mail service is selected. Calculate all subtotals and `total_monthly` (sum of all three subtotals) before sending.
 
 Do not send the DocuSign until all fields above are confirmed. Do not leave locked pricing fields blank.
 
@@ -121,7 +131,7 @@ Do not send the DocuSign until all fields above are confirmed. Do not leave lock
 
 Use the DocuSign connector to send the onboarding agreement from the configured template.
 
-**Template ID:** `8772e4f2-e427-4f4d-828f-69cfa69fd779`
+**Template ID:** `a5a883ff-bde0-4e08-a586-5be4793338b9`
 **Roles:** `Founder` (routing order 1) → `ARK` (routing order 2)
 
 Call `createEnvelopeFromTemplate`. Override the `Founder` role recipient:
