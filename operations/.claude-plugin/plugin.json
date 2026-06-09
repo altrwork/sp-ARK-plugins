@@ -2,11 +2,11 @@
   "name": "sp-ark-operations",
   "displayName": "Operations",
   "version": "0.1.0",
-  "description": "Operations agent for sp-ARK Labs. Onboards new members across agreements, building access, member portal access, and Slack.",
+  "description": "Operations agent for sp-ARK Labs. Two-step member onboarding: send the membership agreement via DocuSign, then activate building access, member portal, and Slack after signing.",
   "author": {
     "name": "Jarred Robidoux",
     "email": "jarredrobidoux@gmail.com"
   },
-  "keywords": ["new member onboarding", "operations", "member access", "coworking", "slack"],
+  "keywords": ["member onboarding", "operations", "member access", "coworking", "slack", "docusign", "verkada", "nexudus"],
   "skills": "./skills/"
 }

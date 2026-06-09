@@ -42,7 +42,8 @@ sp-ARK-plugins/
 │   │   ├── nexudus/                  # Custom Nexudus MCP server spec
 │   │   └── verkada/                  # Custom Verkada MCP server spec
 │   └── skills/
-│       └── new-member-onboarding/    # New member onboarding behavior + references
+│       ├── send-member-agreement/    # Step 1: BossHub → DocuSign agreement
+│       └── activate-member-access/  # Step 2: Verkada + Nexudus + Slack invite (post-signing)
 └── community-management/             # Plugin: community operations
     ├── .claude-plugin/plugin.json
     ├── .mcp.json                     # Microsoft 365 MCP server config
@@ -125,13 +126,14 @@ Operations workflows for onboarding new sp-ARK Labs members from BossHub/LeadCon
 
 **Skills:**
 
-- `new-member-onboarding` - invoked manually as `/new-member-onboarding [member name or email]`; reads one BossHub/LeadConnector member inquiry submission, confirms details with the operator, then coordinates DocuSign, Verkada, Nexudus, and an Outlook draft email for the Slack invite.
+- `send-member-agreement` - invoked as `/send-member-agreement [member name or email]`; reads a BossHub/LeadConnector member inquiry, confirms details with the operator, collects DocuSign fields (pricing, dates, occupancy), and sends the membership agreement through DocuSign. Building access is not provisioned here — Edwin reviews the signed agreement before granting access.
+- `activate-member-access` - invoked as `/activate-member-access [member email]` after the signed DocuSign is returned; looks up the member in BossHub, confirms signing, then creates the Verkada access user (All Access group), creates the Nexudus member account, and drafts the Outlook email with the Slack workspace invite link.
 
 **Connectors:**
 
 - BossHub/LeadConnector reads member inquiry form submissions through the custom BossHub MCP server.
 - Microsoft 365 (`ms365`) drafts the Slack invite email from Outlook.
-- DocuSign uses Claude's prebuilt DocuSign connector with the exported template JSON in `operations/skills/new-member-onboarding/references/spARKLabsNewMemberTemplate.json`.
+- DocuSign uses Claude's prebuilt DocuSign connector with the exported template JSON in `operations/skills/send-member-agreement/references/spARKLabsNewMemberTemplate.json`.
 - Verkada and Nexudus require custom MCP servers that live inside this repo under `operations/mcp-servers/`.
 
 Current BossHub form:
