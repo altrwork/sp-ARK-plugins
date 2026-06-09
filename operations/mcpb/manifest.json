@@ -1,0 +1,107 @@
+{
+  "manifest_version": "0.3",
+  "name": "sp-ark-operations",
+  "display_name": "sp-ARK Operations",
+  "version": "0.1.0",
+  "description": "Onboard new sp-ARK Labs members end-to-end: read BossHub inquiries, provision Verkada building access, and create Nexudus member accounts.",
+  "long_description": "Provides the /new-member-onboarding skill for sp-ARK Labs operators. Connects to BossHub/LeadConnector to read pending member inquiry form submissions, Verkada to create building access users and assign them to the All Access group, and Nexudus to create member portal accounts with the correct membership plan.",
+  "author": {
+    "name": "sp-ARK Labs",
+    "url": "https://github.com/altrwork/sp-ARK-plugins"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/altrwork/sp-ARK-plugins.git"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": {
+        "BOSSHUB_ACCESS_TOKEN": "${user_config.bosshub_access_token}",
+        "BOSSHUB_LOCATION_ID": "jqh6rxfWtvMIQCKxcDlc",
+        "BOSSHUB_FORM_ID": "Ftg5p93SEeTnUWiyAgYn",
+        "BOSSHUB_API_VERSION": "2023-02-21",
+        "VERKADA_API_KEY": "${user_config.verkada_api_key}",
+        "VERKADA_REGION": "api",
+        "VERKADA_DEFAULT_ACCESS_GROUP_ID": "1018efcf-5d11-4a3d-b01a-57bd8d3cd346",
+        "VERKADA_DRY_RUN": "false",
+        "NEXUDUS_ACCESS_TOKEN": "${user_config.nexudus_access_token}",
+        "NEXUDUS_BUSINESS_ID": "1420978999",
+        "NEXUDUS_DRY_RUN": "false"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "bosshub_list_member_inquiries",
+      "description": "List new member inquiry form submissions from the BossHub/LeadConnector form"
+    },
+    {
+      "name": "bosshub_get_member_inquiry",
+      "description": "Find one member inquiry submission by submission ID, email, or name"
+    },
+    {
+      "name": "verkada_find_access_user",
+      "description": "Find a Verkada access user by email address"
+    },
+    {
+      "name": "verkada_create_access_user",
+      "description": "Create a new Verkada building access user"
+    },
+    {
+      "name": "verkada_list_access_groups",
+      "description": "List Verkada access groups"
+    },
+    {
+      "name": "verkada_add_user_to_access_group",
+      "description": "Add a Verkada user to an access group"
+    },
+    {
+      "name": "nexudus_find_person",
+      "description": "Find a Nexudus coworker/member by email address"
+    },
+    {
+      "name": "nexudus_create_person",
+      "description": "Create a Nexudus member account with a membership plan"
+    },
+    {
+      "name": "nexudus_assign_booking_access",
+      "description": "Assign a different plan to an existing Nexudus coworker"
+    }
+  ],
+  "keywords": ["sp-ark", "onboarding", "bosshub", "verkada", "nexudus", "coworking"],
+  "license": "MIT",
+  "user_config": {
+    "bosshub_access_token": {
+      "type": "string",
+      "title": "BossHub Access Token",
+      "description": "API token for BossHub / LeadConnector (requires forms.readonly scope)",
+      "sensitive": true,
+      "required": true
+    },
+    "verkada_api_key": {
+      "type": "string",
+      "title": "Verkada API Key",
+      "description": "API key for Verkada access control",
+      "sensitive": true,
+      "required": true
+    },
+    "nexudus_access_token": {
+      "type": "string",
+      "title": "Nexudus Access Token",
+      "description": "Bearer token for the Nexudus member portal API",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32"],
+    "runtimes": {
+      "node": ">=16.0.0"
+    }
+  }
+}

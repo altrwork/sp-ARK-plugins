@@ -1,0 +1,50 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sp-ark-operations-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-03-10",
+  "compatibility_flags": ["nodejs_compat"],
+  // Public *.workers.dev URL disabled (paused). Set back to true + redeploy to re-enable.
+  "workers_dev": false,
+  "observability": {
+    "enabled": true
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "OperationsMCP",
+        "name": "MCP_OBJECT"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["OperationsMCP"]
+    }
+  ],
+  // OAuth state storage. Create with:
+  //   npx wrangler kv namespace create OAUTH_KV
+  // then paste the returned id below.
+  "kv_namespaces": [
+    {
+      "binding": "OAUTH_KV",
+      "id": "792b3f410ee140048d0da141d6287964"
+    }
+  ],
+  // Non-secret configuration. Secrets are set with `wrangler secret put`:
+  //   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, COOKIE_ENCRYPTION_KEY,
+  //   BOSSHUB_ACCESS_TOKEN, VERKADA_API_KEY, NEXUDUS_ACCESS_TOKEN
+  "vars": {
+    "BOSSHUB_API_BASE_URL": "https://services.leadconnectorhq.com",
+    "BOSSHUB_LOCATION_ID": "jqh6rxfWtvMIQCKxcDlc",
+    "BOSSHUB_FORM_ID": "Ftg5p93SEeTnUWiyAgYn",
+    "BOSSHUB_API_VERSION": "2023-02-21",
+    "VERKADA_REGION": "api",
+    "VERKADA_DEFAULT_ACCESS_GROUP_ID": "1018efcf-5d11-4a3d-b01a-57bd8d3cd346",
+    "VERKADA_DRY_RUN": "false",
+    "NEXUDUS_API_BASE_URL": "https://spaces.nexudus.com",
+    "NEXUDUS_BUSINESS_ID": "1420978999",
+    "NEXUDUS_DRY_RUN": "false"
+  }
+}

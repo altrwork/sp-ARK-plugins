@@ -1,0 +1,14 @@
+# Local development secrets for `wrangler dev`.
+# Copy to `.dev.vars` (gitignored) and fill in. In production these are set with
+# `wrangler secret put <NAME>` instead.
+
+# GitHub OAuth app (https://github.com/settings/developers)
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+# Random 32+ char string. Generate with: openssl rand -hex 32
+COOKIE_ENCRYPTION_KEY=
+
+# Upstream API credentials
+BOSSHUB_ACCESS_TOKEN=
+VERKADA_API_KEY=
+NEXUDUS_ACCESS_TOKEN=

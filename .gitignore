@@ -14,3 +14,13 @@ questions.md
 
 # setup.md
 SETUP.md
+
+# shared credential files
+**/references/edwin-settings.json
+
+# mcpb build artifacts
+*.mcpb
+
+# Cloudflare Worker local secrets + build state
+.dev.vars
+.wrangler/
