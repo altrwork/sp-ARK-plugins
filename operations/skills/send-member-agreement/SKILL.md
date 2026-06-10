@@ -131,7 +131,8 @@ Do not send the DocuSign until all fields above are confirmed. Do not leave lock
 
 Use the DocuSign connector to send the onboarding agreement from the configured template.
 
-**Template ID:** `a5a883ff-bde0-4e08-a586-5be4793338b9`
+Call `getTemplates` and find the template named exactly **`sp-ARK Labs New Member Agreement`**. Use the `templateId` returned from that result. If no match is found, stop and report the error. If multiple matches are found, list them and ask the operator which to use.
+
 **Roles:** `Founder` (routing order 1) → `ARK` (routing order 2)
 
 Call `createEnvelopeFromTemplate`. Override the `Founder` role recipient:
@@ -176,5 +177,5 @@ Next step: Run /activate-member-access [email] after the signed agreement is ret
 
 - Process one member per run.
 - Do not send the DocuSign until the operator explicitly confirms member details in Step 3.
-- Do not guess DocuSign template IDs or pricing values.
+- Do not guess DocuSign template IDs or pricing values — always look up the template by name.
 - Do not grant any building access or portal access in this skill — that happens only after signing.
