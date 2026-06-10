@@ -90,32 +90,31 @@ Wait for explicit confirmation before asking for DocuSign fields.
 
 ### Step 4 - Collect DocuSign fields from operator
 
-Some agreement fields cannot be derived from the BossHub submission. Ask Edwin for the following before sending:
+Most fields are auto-derived. The only operator input needed is for optional pricing add-ons.
 
-**Agreement fields (Founder role — locked tabs):**
+**Auto-derived fields — do not ask the operator:**
 
-| Field | Notes |
+| Field | How to derive |
 |---|---|
-| `membership_end_date` | Not in BossHub form — ask operator |
-| `membership_length` | Derive from membership type or confirm directly (e.g., "month-to-month", "6 months", "12 months") |
-| `max_occupancy` | Not in BossHub form — ask operator |
+| `membership_length` | Always `1 year` |
+| `membership_end_date` | `desired_start_date` + 1 year |
+| `max_occupancy` | From membership option table below |
+| `monthly_membership_price` | From membership option table below |
 
-**Pricing fields (ARK role — locked tabs):**
+**Membership option reference:**
 
-Derive `monthly_membership_price` automatically from `interested_membership_option` using this table:
-
-| BossHub form option | Monthly price |
-|---|---|
-| Flex Desk | $300 |
-| Fixed Desk | $400 |
-| Micro Office | $850 |
-| Small Office | $1,000 |
-| Medium Office | $1,500 |
-| Large Office | $2,500 |
+| BossHub form option | Monthly price | Max occupancy |
+|---|---|---|
+| Flex Desk | $300 | 1 |
+| Fixed Desk | $400 | 2 |
+| Micro Office | $850 | 2 |
+| Small Office | $1,000 | 4 |
+| Medium Office | $1,500 | 6 |
+| Large Office | $2,500 | 8 |
 
 Set `monthly_membership_qty` to `1` and calculate `monthly_membership_subtotal` as `price × qty`.
 
-Only ask the operator for:
+**Only ask the operator for pricing add-ons:**
 
 | Field | Notes |
 |---|---|
@@ -125,13 +124,13 @@ Only ask the operator for:
 
 Set `mail_service_qty` to `0` or `1` to match whether mail service is selected. Calculate all subtotals and `total_monthly` (sum of all three subtotals) before sending.
 
-Do not send the DocuSign until all fields above are confirmed. Do not leave locked pricing fields blank.
+Do not send the DocuSign until pricing add-ons are confirmed. Do not leave locked pricing fields blank.
 
 ### Step 5 - Send DocuSign agreement
 
 Use the DocuSign connector to send the onboarding agreement from the configured template.
 
-Call `getTemplates` and find the template named exactly **`sp-ARK Labs New Member Agreement`**. Use the `templateId` returned from that result. If no match is found, stop and report the error. If multiple matches are found, list them and ask the operator which to use.
+Call `getTemplates` and find the template named exactly **`spARK new member template`**. Use the `templateId` returned from that result. If no match is found, stop and report the error. If multiple matches are found, list them and ask the operator which to use.
 
 **Roles:** `Founder` (routing order 1) → `ARK` (routing order 2)
 
@@ -139,9 +138,11 @@ Call `createEnvelopeFromTemplate`. Override the `Founder` role recipient:
 - Name: `[first_name] [last_name]`
 - Email: `[email]`
 
-Do not override the `ARK` role recipient — leave it as configured in the template.
+Do not override the `ARK` role recipient — the template is configured with **Rebecca Brown (CEO)** as the ARK signer.
 
 Pre-fill all locked tabs before sending.
+
+> **Note on field visibility:** Pre-filled locked tabs are not visible in the DocuSign sender preview or envelope draft view. This is expected — they will appear correctly in the envelope delivered to signers. Do not re-enter or adjust tabs based on the preview.
 
 Tabs on the `Founder` role — map from BossHub data and operator-provided fields:
 

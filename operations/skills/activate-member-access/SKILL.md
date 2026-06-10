@@ -102,23 +102,13 @@ Use the Nexudus connector tools:
 
 Nexudus auth note: Nexudus supports bearer tokens from `POST /api/token` with form-encoded username/password credentials. If a static access token is available, use it as `NEXUDUS_ACCESS_TOKEN`; otherwise the custom MCP server can exchange `NEXUDUS_USERNAME` and `NEXUDUS_PASSWORD` for a token.
 
-### Step 5 - Draft Slack invite email
+### Step 5 - Draft welcome email
 
-Use Microsoft 365 Outlook to draft an email from Edwin directly to `[email]` with the Slack workspace invite link.
+Use Microsoft 365 Outlook to draft a welcome email from Edwin to `[email]`.
 
-Slack invite link:
+Use the template at `references/welcome-email.md`. Substitute `{member_name}` with the member's first name.
 
-```text
-https://sparklabsbyarkinvest.slack.com/join/invite/enQtMTEyODExNTY5NjQ3NzQtNjI3NDg3YTkxMzllODcwZDkxNDg2YWRiOTNkZjNjMDUwMmNhZTdkNDY1MDQ5ZmFlYWFhYjBiNzMxMTRlYTZlNQ#/email-invite/credentials
-```
-
-The draft should include:
-
-- New member name: `[first name] [last name]`
-- The Slack invite link
-- A short note that they should use the email address submitted in the member inquiry form
-
-Save the message as a draft. Do not send automatically unless the user explicitly asks.
+Save the message as a draft with subject **"Welcome to spARK Labs!"**. Do not send automatically unless the user explicitly asks.
 
 ### Step 6 - Report results
 

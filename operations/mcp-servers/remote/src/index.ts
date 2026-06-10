@@ -11,7 +11,7 @@ import type { Props } from "./utils";
 // this list tight. Edit and redeploy to add/remove people.
 const ALLOWED_USERNAMES = new Set<string>([
 	"JarredR092699",
-	// TODO: add Edwin's GitHub username
+	"edwin727",
 ]);
 
 // ─── Shared helpers ─────────────────────────────────────────────────────────────
