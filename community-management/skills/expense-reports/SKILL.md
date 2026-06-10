@@ -17,23 +17,30 @@ You are Cassidy, the community manager at sp-ARK labs. When this skill triggers,
 | **Scans folder** | Ask the user at the start if not provided as an argument |
 | **Expense report file** | Ask the user at the start if not already known |
 | **Report sheet** | `Sheet1` (or `Transaction Report` if renamed) |
-| **Account split (default)** | `1050 Cash in Bank - Bank of Tampa 5688 (Program)` |
+| **Template reference** | `references/September 2024 Expense Report - Updated.pdf` |
+
+Column order in the report follows the September 2024 template: **No. | Date | Acct. # | Description | Explanatory Note | Amount**
 
 ---
 
-## Expense Category Codes
+## Account Codes
 
-Assign every transaction to exactly one of the following five codes. Use the descriptions to guide your judgment. When unsure, pick the closest match and note your reasoning in the Notes field.
+Assign every transaction to one of the following account codes. Use the Explanatory Note format as a model for the note you write. When unsure, pick the closest match and flag with `NEEDS REVIEW`. Refer to `references/September 2024 Expense Report - Updated.pdf` as the authoritative format reference.
 
-| Code | Label | What belongs here |
-|---|---|---|
-| `6080` | Office & Operating Expenses | Supplies, kitchen items, snacks, cleaning, utilities, small equipment, event materials, meals |
-| `6100` | Professional Services | Contractors, consultants, freelancers, memberships, subscriptions to professional tools |
-| `6200` | Marketing & Events | Event costs, promotional materials, advertising, sponsorships, content production |
-| `6300` | Technology & Software | SaaS subscriptions, software licenses, AI tools, hosting, digital infrastructure |
-| `6400` | Facilities & Infrastructure | Rent, security, building systems, physical infrastructure, maintenance |
-
-> **Note for Cassidy:** These are placeholder codes. Replace with the real chart-of-accounts codes once received.
+| Acct. # | Category | Explanatory Note Format | Example Vendors |
+|---|---|---|---|
+| `30156050` | Catering & Event Food — Accelerator | `Catering & Event Food - Accelerator (Lunch)` / `(Breakfast)` | Joey Brooklyn's, Craft Kafe, Dunkin Donuts |
+| `98666050` | Catering & Event Food — General | `Catering & Event Food - [occasion]` | Publix, Target, Toss Salads, Loanis |
+| `98666080` | Furniture & Fixtures | `Furniture & Fixtures - [items]` | Best Buy |
+| `30156140` | Telecom — Internet & Telephone | `Telecom - Internet & Telephone` | Ubiquiti |
+| `98666060` | Utilities | `Utilities` | St. Petersburg Utility |
+| `98666030` | Dues & Subscriptions | `Dues & Subscriptions` | Adobe |
+| `30156100` | Dues & Subscriptions | `Dues & Subscriptions` | ProShred |
+| `30156220` | Professional Fees | `Professional Fees - Professional Services` | Constant Contact |
+| `98666260` | Postage & Shipping | `Postage and Shipping` | UPS Store |
+| `98666360` | Postage & Shipping — Returns | `Postage and Shipping - [description] - Returned Items` | UPS Store |
+| `98666220` | Client Relations | `Client Relations` | Crunchbase |
+| `30156310` | Marketing | `Marketing` | Meetup |
 
 ---
 
@@ -89,7 +96,7 @@ try:
     rows = []
     for row in ws.iter_rows(min_row=2, values_only=True):
         if any(cell is not None for cell in row):
-            rows.append({"date": str(row[0]), "name": str(row[2]), "amount": str(row[5])})
+            rows.append({"date": str(row[1]), "name": str(row[3]), "amount": str(row[5])})
     print(json.dumps({"last_row": ws.max_row, "existing": rows}))
 except Exception as e:
     print(json.dumps({"error": str(e)}))
@@ -107,9 +114,8 @@ From each file, extract these fields:
 | Field | Description |
 |---|---|
 | `Date` | Transaction or invoice date (MM/DD/YYYY) |
-| `Transaction Type` | `Expenditure` for purchases, `Deposit` for credits/refunds |
-| `Name` | Vendor or payee name (clean, human-readable) |
-| `Memo/Description` | Raw description, memo, or line items from the receipt |
+| `Description` | Vendor or payee name (clean, human-readable) |
+| `Explanatory Note` | Category + specific detail, e.g. `Catering & Event Food - Accelerator (Lunch)` |
 | `Amount` | Dollar amount (positive number, no $ sign) |
 | `Source File` | The filename — kept for audit trail |
 
@@ -117,7 +123,7 @@ From each file, extract these fields:
 - Vendor name is typically the largest text at the top
 - Total is almost always at the bottom, after tax and tip — use the final amount paid, not subtotals
 - If two totals exist (subtotal vs. total), always use the final total paid
-- Card receipts often show an Auth Code or Transaction ID — include it in Memo/Description
+- Card receipts often show an Auth Code or Transaction ID — include it in the Explanatory Note
 - If the PDF is a bank statement with multiple transactions, extract each row as a separate record
 
 **If a file cannot be read**, log it as:
@@ -126,49 +132,58 @@ Then continue to the next file.
 
 ### Step 5 — Categorize each transaction
 
-For each transaction record, assign it to one of the five expense codes from the Configuration table.
+For each transaction record, assign an `Acct. #` from the Account Codes table and write an `Explanatory Note` that matches the format shown in that table.
 
 **Categorization rules:**
-- Read the `Name` (vendor) and `Memo/Description` together.
-- Apply the category definitions above.
+- Read the `Description` (vendor) and any receipt detail together.
+- Match to the closest account code using the Account Codes table above.
 - **Vendor shortcuts** (common sp-ARK vendors):
-  - Amazon → `6080` if memo mentions supplies, snacks, kitchen, batteries, cables; `6300` if software/service
-  - Anthropic → `6300` Technology & Software
-  - Captivate / Opus Clip / Haven Media / similar content tools → `6200` Marketing & Events
-  - spARK LABS (own domain) → `6080` unless memo indicates otherwise
-  - Pollen Robot → `6080` (office tool/equipment)
-  - Emerge AI Hub → `6200` (event-related)
-  - Restaurants / cafes → `6080` Office & Operating Expenses - Meals & Hospitality
-  - Zoom → `6300` Technology & Software
+  - Publix / Target / grocery stores → `98666050` Catering & Event Food — General
+  - Restaurants / cafes for accelerator events → `30156050` Catering & Event Food — Accelerator
+  - Best Buy / equipment purchases → `98666080` Furniture & Fixtures
+  - Adobe / SaaS subscriptions → `98666030` Dues & Subscriptions
+  - Constant Contact / professional contractors → `30156220` Professional Fees
+  - UPS Store (outbound) → `98666260` Postage & Shipping
+  - UPS Store (returned items) → `98666360` Postage & Shipping — Returns
+  - Crunchbase / similar → `98666220` Client Relations
+  - Meetup / event promotion → `30156310` Marketing
+  - Ubiquiti / ISP / internet → `30156140` Telecom — Internet & Telephone
+  - Utility bills → `98666060` Utilities
 
-**Build the Notes field** using this format:
+**Explanatory Note format:**
 ```
-[Code] [Label] - [Subcategory] - [Specific description]
+[Category label] - [Subcategory or occasion] - [Specific detail if needed]
 ```
-Example: `6080 Office & Operating Expenses - Meals & Hospitality - Staff breakfast at Blue Sail Cafe`
+Examples from the September 2024 template:
+- `Catering & Event Food - Accelerator (Lunch)`
+- `Furniture & Fixtures - TV's, TV Mounts`
+- `Professional Fees - Professional Services`
+- `Postage and Shipping - Notary Forms - Returned Items`
 
-If you cannot confidently categorize, set Notes to:
+If you cannot confidently categorize, write:
 ```
 NEEDS REVIEW - [best guess and why you're uncertain]
 ```
 
 ### Step 6 — Append new rows to the report
 
-After processing all files, write all new (non-duplicate) transactions in a single Python call. Replace `REPORT_PATH` and populate `ROWS` with the extracted data:
+After processing all files, write all new (non-duplicate) transactions in a single Python call. Replace `REPORT_PATH`, `START_ROW` (the last populated row number + 1), and populate `ROWS` with the extracted data:
 
 ```bash
 python3 - <<'EOF'
 import openpyxl
 
 REPORT_PATH = "REPLACE_WITH_PATH"
+START_ROW = 2  # replace with last_row + 1 from Step 3
 ROWS = [
-    # ["Date", "Transaction Type", "Name", "Memo/Description", "Split", Amount, "Notes"],
+    # [row_no, "Date", "Acct. #", "Description", "Explanatory Note", Amount],
 ]
 
 wb = openpyxl.load_workbook(REPORT_PATH)
 ws = wb.active
 
-for row in ROWS:
+for i, row in enumerate(ROWS):
+    row[0] = START_ROW - 1 + i  # auto-number starting from START_ROW
     ws.append(row)
 
 wb.save(REPORT_PATH)
@@ -178,11 +193,12 @@ EOF
 
 Each row must follow this column order exactly:
 ```
-[Date] | [Transaction Type] | [Name] | [Memo/Description] | [Split] | [Amount] | [Notes]
+[No.] | [Date] | [Acct. #] | [Description] | [Explanatory Note] | [Amount]
 ```
 
-- `Split`: always `1050 Cash in Bank - Bank of Tampa 5688 (Program)` unless the receipt specifies otherwise
+- `No.`: sequential row number (auto-incremented from last row)
 - `Date`: MM/DD/YYYY string format
+- `Acct. #`: account code from the Account Codes table
 - `Amount`: numeric value only, no currency symbols
 
 ### Step 7 — Report back to the user
@@ -198,12 +214,17 @@ After all files are processed, produce this summary:
 **New transactions added:** [N] rows to `[report filename]`
 **Duplicates skipped:** [N]
 
-**Transactions by Category:**
-- 6080 Office & Operating Expenses: [N] transactions, $[total]
-- 6100 Professional Services: [N] transactions, $[total]
-- 6200 Marketing & Events: [N] transactions, $[total]
-- 6300 Technology & Software: [N] transactions, $[total]
-- 6400 Facilities & Infrastructure: [N] transactions, $[total]
+**Transactions by Account:**
+- 30156050 Catering & Event Food — Accelerator: [N] transactions, $[total]
+- 98666050 Catering & Event Food — General: [N] transactions, $[total]
+- 98666080 Furniture & Fixtures: [N] transactions, $[total]
+- 30156140 Telecom — Internet & Telephone: [N] transactions, $[total]
+- 98666060 Utilities: [N] transactions, $[total]
+- 98666030 / 30156100 Dues & Subscriptions: [N] transactions, $[total]
+- 30156220 Professional Fees: [N] transactions, $[total]
+- 98666260 / 98666360 Postage & Shipping: [N] transactions, $[total]
+- 98666220 Client Relations: [N] transactions, $[total]
+- 30156310 Marketing: [N] transactions, $[total]
 - NEEDS REVIEW: [N] transactions
 
 **Items Flagged for Review:**
@@ -226,6 +247,6 @@ After all files are processed, produce this summary:
 ## Edge Cases
 
 - **Bank statement PDFs** with multiple transactions: extract and process each row individually
-- **Refunds or credits**: set Transaction Type to `Deposit`
+- **Refunds or credits**: note in the Explanatory Note as `[Category] - Refund/Credit`
 - **No date visible**: use today's date and flag with `NEEDS REVIEW`
 - **Files with no recognizable transaction data**: skip and add to manual review list
