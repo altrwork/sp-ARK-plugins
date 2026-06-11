@@ -12,3 +12,9 @@ COOKIE_ENCRYPTION_KEY=
 BOSSHUB_ACCESS_TOKEN=
 VERKADA_API_KEY=
 NEXUDUS_ACCESS_TOKEN=
+
+# Microsoft Graph (Outlook drafts)
+# Register an Entra app: https://entra.microsoft.com → App registrations
+# Grant application permission: Mail.ReadWrite (requires admin consent)
+# MS_TENANT_ID, MS_CLIENT_ID, MS_SENDER_EMAIL also go in wrangler.jsonc vars
+MS_CLIENT_SECRET=

@@ -34,7 +34,8 @@
   ],
   // Non-secret configuration. Secrets are set with `wrangler secret put`:
   //   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, COOKIE_ENCRYPTION_KEY,
-  //   BOSSHUB_ACCESS_TOKEN, VERKADA_API_KEY, NEXUDUS_ACCESS_TOKEN
+  //   BOSSHUB_ACCESS_TOKEN, VERKADA_API_KEY, NEXUDUS_ACCESS_TOKEN,
+  //   MS_CLIENT_SECRET
   "vars": {
     "BOSSHUB_API_BASE_URL": "https://services.leadconnectorhq.com",
     "BOSSHUB_LOCATION_ID": "jqh6rxfWtvMIQCKxcDlc",
@@ -45,6 +46,10 @@
     "VERKADA_DRY_RUN": "false",
     "NEXUDUS_API_BASE_URL": "https://spaces.nexudus.com",
     "NEXUDUS_BUSINESS_ID": "1420978999",
-    "NEXUDUS_DRY_RUN": "false"
+    "NEXUDUS_DRY_RUN": "false",
+    // Microsoft Graph — fill in after registering the Entra app
+    "MS_TENANT_ID": "",
+    "MS_CLIENT_ID": "",
+    "MS_SENDER_EMAIL": ""
   }
 }

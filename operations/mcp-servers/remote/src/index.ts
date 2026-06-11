@@ -110,6 +110,9 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 	private vkTokenExpiresAt = 0;
 	// Nexudus token cache
 	private nxCachedToken = "";
+	// Microsoft Graph token cache
+	private msAccessToken: string | null = null;
+	private msTokenExpiresAt = 0;
 
 	async init() {
 		// Gate every tool behind the allowlist. Non-allowed users authenticate but get
@@ -429,6 +432,92 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 					body: JSON.stringify({ Id: coworker_id, TariffId: tariff_id }),
 				});
 				return jsonResponse(ok({ coworker: result }));
+			}
+		);
+
+		// ── Microsoft Outlook (Graph API) ─────────────────────────────────────────
+
+		const msMissingConfig = (): string[] => {
+			const missing: string[] = [];
+			if (!env.MS_TENANT_ID) missing.push("MS_TENANT_ID");
+			if (!env.MS_CLIENT_ID) missing.push("MS_CLIENT_ID");
+			if (!env.MS_CLIENT_SECRET) missing.push("MS_CLIENT_SECRET");
+			if (!env.MS_SENDER_EMAIL) missing.push("MS_SENDER_EMAIL");
+			return missing;
+		};
+
+		const getMsToken = async (): Promise<string> => {
+			if (this.msAccessToken && Date.now() < this.msTokenExpiresAt) return this.msAccessToken;
+			const params = new URLSearchParams({
+				grant_type: "client_credentials",
+				client_id: env.MS_CLIENT_ID,
+				client_secret: env.MS_CLIENT_SECRET,
+				scope: "https://graph.microsoft.com/.default",
+			});
+			const response = await fetch(
+				`https://login.microsoftonline.com/${env.MS_TENANT_ID}/oauth2/v2.0/token`,
+				{ method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: params.toString() }
+			);
+			const body: any = await response.json().catch(() => ({}));
+			if (!response.ok || !body.access_token) {
+				throw new Error(JSON.stringify({ status: response.status, body, message: "Failed to obtain Microsoft Graph token" }));
+			}
+			this.msAccessToken = body.access_token;
+			// expires_in is in seconds; refresh 60s early
+			this.msTokenExpiresAt = Date.now() + (body.expires_in - 60) * 1000;
+			return this.msAccessToken as string;
+		};
+
+		this.server.tool(
+			"outlook_create_draft",
+			"Create a draft email in Outlook for the configured sender (Edwin). Does not send — the user reviews and sends manually.",
+			{
+				to: z.string().email().describe("Recipient email address"),
+				to_name: z.string().optional().describe("Recipient display name"),
+				subject: z.string().min(1),
+				body_html: z.string().min(1).describe("Email body as HTML"),
+				cc: z.array(z.string().email()).optional().describe("CC recipients"),
+			},
+			async ({ to, to_name, subject, body_html, cc }) => {
+				const missing = msMissingConfig();
+				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
+				const token = await getMsToken();
+				const message: Record<string, unknown> = {
+					subject,
+					body: { contentType: "HTML", content: body_html },
+					toRecipients: [{ emailAddress: { address: to, ...(to_name ? { name: to_name } : {}) } }],
+				};
+				if (cc && cc.length > 0) {
+					message.ccRecipients = cc.map((addr) => ({ emailAddress: { address: addr } }));
+				}
+				const response = await fetch(
+					`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(env.MS_SENDER_EMAIL)}/messages`,
+					{
+						method: "POST",
+						headers: {
+							accept: "application/json",
+							"content-type": "application/json",
+							authorization: `Bearer ${token}`,
+						},
+						body: JSON.stringify(message),
+					}
+				);
+				const text = await response.text();
+				let body: any = {};
+				if (text) {
+					try { body = JSON.parse(text); } catch { body = { raw: text }; }
+				}
+				if (!response.ok) {
+					throw new Error(JSON.stringify({ status: response.status, statusText: response.statusText, body }));
+				}
+				return jsonResponse(ok({
+					draft_created: true,
+					message_id: body.id,
+					subject: body.subject,
+					web_link: body.webLink || null,
+					from: env.MS_SENDER_EMAIL,
+					to,
+				}));
 			}
 		);
 	}

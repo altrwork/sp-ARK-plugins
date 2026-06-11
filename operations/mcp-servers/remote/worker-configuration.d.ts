@@ -28,6 +28,11 @@ declare namespace Cloudflare {
 		NEXUDUS_USERNAME?: string;
 		NEXUDUS_PASSWORD?: string;
 		NEXUDUS_TOTP?: string;
+		// Microsoft Graph (Outlook drafts) — secret: MS_CLIENT_SECRET, vars: the rest
+		MS_TENANT_ID: string;
+		MS_CLIENT_ID: string;
+		MS_CLIENT_SECRET: string;
+		MS_SENDER_EMAIL: string;
 	}
 }
 
