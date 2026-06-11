@@ -93,7 +93,7 @@ mcp_servers:
     # vault_id goes in the session, not here.
   - type: url
     name: docusign
-    url: "<PLACEHOLDER: Claude Console → Integrations → DocuSign → copy MCP URL>"
+    url: "https://mcp.docusign.com/mcp"
   - type: url
     name: ms365
     url: "<PLACEHOLDER: Claude Console → Integrations → Microsoft 365 → copy MCP URL>"
