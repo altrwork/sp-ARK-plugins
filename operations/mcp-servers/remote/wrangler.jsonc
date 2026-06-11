@@ -47,9 +47,9 @@
     "NEXUDUS_API_BASE_URL": "https://spaces.nexudus.com",
     "NEXUDUS_BUSINESS_ID": "1420978999",
     "NEXUDUS_DRY_RUN": "false",
-    // Microsoft Graph — fill in after registering the Entra app
-    "MS_TENANT_ID": "",
-    "MS_CLIENT_ID": "",
-    "MS_SENDER_EMAIL": ""
+    // Microsoft Graph — Entra app for Outlook draft creation
+    "MS_TENANT_ID": "f744eb6e-28db-40f2-9532-8706c4471f62",
+    "MS_CLIENT_ID": "7fda7db0-9102-48a0-a44f-db230bc05cd4",
+    "MS_SENDER_EMAIL": "JarredRobidoux@RobidouxLLC.onmicrosoft.com"
   }
 }
