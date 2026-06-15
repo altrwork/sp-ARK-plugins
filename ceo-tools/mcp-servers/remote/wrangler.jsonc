@@ -1,0 +1,43 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "sp-ark-ceo-tools",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-03-10",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"workers_dev": true,
+	"observability": {
+		"enabled": true
+	},
+	"durable_objects": {
+		"bindings": [
+			{
+				"class_name": "CeoToolsMCP",
+				"name": "MCP_OBJECT"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"CeoToolsMCP"
+			]
+		}
+	],
+	// OAuth state storage. Create with:
+	//   npx wrangler kv namespace create CEO_TOOLS_OAUTH_KV
+	// then paste the returned id below.
+	"kv_namespaces": [
+		{
+			"binding": "OAUTH_KV",
+			"id": "09deca38fc69413eb0e869fdf057bdf2"
+		}
+	],
+	// Non-secret vars. Secrets set with `wrangler secret put`:
+	//   MS_CLIENT_SECRET, COOKIE_ENCRYPTION_KEY
+	"vars": {
+		"MS_CLIENT_ID": "bcaefde6-b9ed-407e-9dbe-04de6127730e"
+	}
+}
