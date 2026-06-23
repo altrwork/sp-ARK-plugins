@@ -2,16 +2,18 @@ import OAuthProvider from "@cloudflare/workers-oauth-provider";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
 import { z } from "zod";
-import { GitHubHandler } from "./github-handler";
+import { MicrosoftHandler } from "./microsoft-handler";
 import type { Props } from "./utils";
 
 // ─── Access control ──────────────────────────────────────────────────────────────
-// Only these GitHub usernames can use the onboarding tools. Anyone else can log in
+// Only these Microsoft account emails can use the tools. Anyone else can sign in
 // but will see no tools. These write to building access + member systems, so keep
 // this list tight. Edit and redeploy to add/remove people.
-const ALLOWED_USERNAMES = new Set<string>([
-	"JarredR092699",
-	"edwin727",
+const ALLOWED_EMAILS = new Set<string>([
+	"jarred@altrwork.com",
+	"robidouxj@sp-ark-labs.com",
+	// TODO: add Edwin's Microsoft email
+	// TODO: add marketing staff emails when onboarded
 ]);
 
 // ─── Shared helpers ─────────────────────────────────────────────────────────────
@@ -117,7 +119,7 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 	async init() {
 		// Gate every tool behind the allowlist. Non-allowed users authenticate but get
 		// no tools, so they cannot reach building access / member provisioning.
-		if (!ALLOWED_USERNAMES.has(this.props!.login)) {
+		if (!ALLOWED_EMAILS.has(this.props!.email)) {
 			return;
 		}
 
@@ -152,26 +154,36 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 		};
 
 		this.server.tool(
-			"bosshub_list_member_inquiries",
-			"List new member inquiry form submissions from the BossHub/LeadConnector form.",
+			"bosshub_list_forms",
+			"List all BossHub forms for this location. Call this first when you don't know which form_id to use for bosshub_list_submissions or bosshub_get_submission.",
+			{},
+			async () => {
+				if (!env.BOSSHUB_ACCESS_TOKEN) {
+					return jsonResponse(blocked("BOSSHUB_ACCESS_TOKEN is not configured.", { required_scope: "forms.readonly" }));
+				}
+				const result = await bosshubRequest("/forms/", { locationId: env.BOSSHUB_LOCATION_ID });
+				return jsonResponse(ok({ forms: result.forms || [], total: result.total || 0 }));
+			}
+		);
+
+		this.server.tool(
+			"bosshub_list_submissions",
+			"List submissions from a BossHub form. If you don't know the form_id, call bosshub_list_forms first to find it by name. Omit form_id to default to the member inquiry form.",
 			{
+				form_id: z.string().optional().describe("Form ID from bosshub_list_forms. Defaults to the member inquiry form."),
 				page: z.number().int().positive().default(1),
 				limit: z.number().int().positive().max(100).default(20),
 				q: z.string().optional(),
 				startAt: z.string().optional(),
 				endAt: z.string().optional(),
 			},
-			async ({ page, limit, q, startAt, endAt }) => {
+			async ({ form_id, page, limit, q, startAt, endAt }) => {
 				if (!env.BOSSHUB_ACCESS_TOKEN) {
-					return jsonResponse(blocked("BOSSHUB_ACCESS_TOKEN is not configured.", {
-						required_scope: "forms.readonly",
-						location_id: env.BOSSHUB_LOCATION_ID,
-						form_id: env.BOSSHUB_FORM_ID,
-					}));
+					return jsonResponse(blocked("BOSSHUB_ACCESS_TOKEN is not configured.", { required_scope: "forms.readonly" }));
 				}
 				const result = await bosshubRequest("/forms/submissions", {
 					locationId: env.BOSSHUB_LOCATION_ID,
-					formId: env.BOSSHUB_FORM_ID,
+					formId: form_id || env.BOSSHUB_FORM_ID,
 					page, limit, q, startAt, endAt,
 				});
 				return jsonResponse(ok({
@@ -182,16 +194,19 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 		);
 
 		this.server.tool(
-			"bosshub_get_member_inquiry",
-			"Find one member inquiry submission by submission ID, email, or name.",
-			{ query: z.string().min(1) },
-			async ({ query }) => {
+			"bosshub_get_submission",
+			"Find one submission from a BossHub form by submission ID, email, or name. If you don't know the form_id, call bosshub_list_forms first. Omit form_id to default to the member inquiry form.",
+			{
+				query: z.string().min(1).describe("Submission ID, email address, or name to search for."),
+				form_id: z.string().optional().describe("Form ID from bosshub_list_forms. Defaults to the member inquiry form."),
+			},
+			async ({ query, form_id }) => {
 				if (!env.BOSSHUB_ACCESS_TOKEN) {
 					return jsonResponse(blocked("BOSSHUB_ACCESS_TOKEN is not configured.", { query, required_scope: "forms.readonly" }));
 				}
 				const result = await bosshubRequest("/forms/submissions", {
 					locationId: env.BOSSHUB_LOCATION_ID,
-					formId: env.BOSSHUB_FORM_ID,
+					formId: form_id || env.BOSSHUB_FORM_ID,
 					q: query, page: 1, limit: 20,
 				});
 				const submissions = (result.submissions || []).map(normalizeSubmission);
@@ -532,6 +547,6 @@ export default new OAuthProvider({
 	apiRoute: "/mcp",
 	authorizeEndpoint: "/authorize",
 	clientRegistrationEndpoint: "/register",
-	defaultHandler: GitHubHandler as any,
+	defaultHandler: MicrosoftHandler as any,
 	tokenEndpoint: "/token",
 });
