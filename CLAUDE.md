@@ -86,6 +86,7 @@ Event marketing automation.
 **Skills:**
 - `inbox-scraper` — `/scrape-inbox <sheet_url> [days=30]`; scans Gmail for recent contacts, deduplicates against a distribution list Sheet, appends new rows.
 - `draft-invites` — `/draft-invites "<event details>"`; reads the distribution list Sheet, finds uninvited contacts, saves personalized Gmail drafts, updates the `Events Invited` column.
+- `match-interns` — `/match-interns`; pulls intern applications and member intern requests from BossHub, matches interns to member companies by skills/industry/availability, optionally drafts intro emails.
 
 **Connector placeholders:**
 
