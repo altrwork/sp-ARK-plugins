@@ -12,8 +12,8 @@ import type { Props } from "./utils";
 const ALLOWED_EMAILS = new Set<string>([
 	"jarred@altrwork.com",
 	"robidouxj@sp-ark-labs.com",
-	"DeekE@sp-ark-labs.com",
-	"BernardC@sp-ark-labs.com",
+	"deeke@sp-ark-labs.com",
+	"bernardc@sp-ark-labs.com",
 	"ryanc@sp-ark-labs.com",
 ]);
 
