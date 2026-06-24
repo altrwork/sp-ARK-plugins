@@ -12,8 +12,9 @@ import type { Props } from "./utils";
 const ALLOWED_EMAILS = new Set<string>([
 	"jarred@altrwork.com",
 	"robidouxj@sp-ark-labs.com",
-	// TODO: add Edwin's Microsoft email
-	// TODO: add marketing staff emails when onboarded
+	"DeekE@sp-ark-labs.com",
+	"BernardC@sp-ark-labs.com",
+	"ryanc@sp-ark-labs.com",
 ]);
 
 // ─── Shared helpers ─────────────────────────────────────────────────────────────
