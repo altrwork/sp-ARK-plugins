@@ -1,13 +1,11 @@
-// Global Env type shared by index.ts and github-handler.ts.
+// Global Env type shared by index.ts and microsoft-handler.ts.
 // Bindings + vars come from wrangler.jsonc; secrets are set with `wrangler secret put`.
 declare namespace Cloudflare {
 	interface Env {
 		// Bindings
 		MCP_OBJECT: DurableObjectNamespace;
 		OAUTH_KV: KVNamespace;
-		// OAuth secrets
-		GITHUB_CLIENT_ID: string;
-		GITHUB_CLIENT_SECRET: string;
+		// OAuth + encryption secrets
 		COOKIE_ENCRYPTION_KEY: string;
 		// Upstream API secrets
 		BOSSHUB_ACCESS_TOKEN: string;

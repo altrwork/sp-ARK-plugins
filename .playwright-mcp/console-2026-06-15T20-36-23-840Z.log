@@ -1,0 +1,2 @@
+[    2612ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://sp-ark-ceo-tools.jarred-823.workers.dev/authorize:0
+[    2665ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://sp-ark-ceo-tools.jarred-823.workers.dev/favicon.ico:0
