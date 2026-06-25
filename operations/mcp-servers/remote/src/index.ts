@@ -15,6 +15,7 @@ const ALLOWED_EMAILS = new Set<string>([
 	"deeke@tbinnovates.com",
 	"bernardc@sp-ark-labs.com",
 	"ryanc@sp-ark-labs.com",
+	"brownr@sp-ark-labs.com"
 ]);
 
 // ─── Shared helpers ─────────────────────────────────────────────────────────────
@@ -454,7 +455,128 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			}
 		);
 
-		// ── Microsoft Outlook (Graph API) ─────────────────────────────────────────
+		this.server.tool(
+				"nexudus_list_resources",
+				"List available meeting rooms and resources in Nexudus. Call this to get resource IDs before creating a booking.",
+				{
+					page: z.number().int().positive().default(1),
+					size: z.number().int().positive().max(100).default(25),
+					name: z.string().optional().describe("Filter by resource name (partial match)"),
+				},
+				async ({ page, size, name }) => {
+					const missing = nxMissingConfig();
+					if (missing.length) return jsonResponse(blocked("Nexudus API configuration is incomplete.", { missing }));
+					const params = new URLSearchParams({ page: String(page), size: String(size) });
+					if (name) params.set("Name", name);
+					const result = await nexudusRequest(`/api/spaces/resources?${params}`);
+					const records = (result.Records || []).map((r: any) => ({
+						id: r.Id,
+						name: r.Name,
+						description: r.Description,
+						capacity: r.Capacity,
+						min_booking_length_mins: r.MinBookingLength,
+						max_booking_length_mins: r.MaxBookingLength,
+						requires_confirmation: r.RequiresConfirmation,
+						visible: r.Visible,
+					}));
+					return jsonResponse(ok({ resources: records, total: result.TotalItems, page: result.CurrentPage, total_pages: result.TotalPages }));
+				}
+			);
+
+			this.server.tool(
+				"nexudus_list_bookings",
+				"List room bookings in Nexudus. Filter by date range, resource, or coworker.",
+				{
+					from_date: z.string().optional().describe("Start of date range, ISO 8601 UTC (e.g. 2024-06-25T00:00:00Z)"),
+					to_date: z.string().optional().describe("End of date range, ISO 8601 UTC"),
+					resource_id: z.number().int().optional().describe("Filter by resource/room ID"),
+					coworker_id: z.number().int().optional().describe("Filter by coworker/member ID"),
+					page: z.number().int().positive().default(1),
+					size: z.number().int().positive().max(100).default(25),
+				},
+				async ({ from_date, to_date, resource_id, coworker_id, page, size }) => {
+					const missing = nxMissingConfig();
+					if (missing.length) return jsonResponse(blocked("Nexudus API configuration is incomplete.", { missing }));
+					const params = new URLSearchParams({ page: String(page), size: String(size) });
+					if (from_date) params.set("from_FromTime", from_date);
+					if (to_date) params.set("to_ToTime", to_date);
+					if (resource_id) params.set("ResourceId", String(resource_id));
+					if (coworker_id) params.set("CoworkerId", String(coworker_id));
+					const result = await nexudusRequest(`/api/spaces/bookings?${params}`);
+					const records = (result.Records || []).map((b: any) => ({
+						id: b.Id,
+						booking_number: b.BookingNumber,
+						resource_id: b.ResourceId,
+						resource_name: b.ResourceName,
+						coworker_id: b.CoworkerId,
+						coworker_name: b.CoworkerName,
+						from_time: b.FromTime,
+						to_time: b.ToTime,
+						from_time_local: b.FromTimeLocal,
+						to_time_local: b.ToTimeLocal,
+						tentative: b.Tentative,
+					}));
+					return jsonResponse(ok({ bookings: records, total: result.TotalItems, page: result.CurrentPage, total_pages: result.TotalPages }));
+				}
+			);
+
+			this.server.tool(
+				"nexudus_create_booking",
+				"Create a meeting room booking in Nexudus. Call nexudus_list_resources first to get the resource_id. Times must be ISO 8601 UTC.",
+				{
+					resource_id: z.number().int().positive().describe("Room/resource ID from nexudus_list_resources"),
+					from_time: z.string().describe("Start time, ISO 8601 UTC (e.g. 2024-06-25T14:00:00Z)"),
+					to_time: z.string().describe("End time, ISO 8601 UTC (e.g. 2024-06-25T15:00:00Z)"),
+					coworker_id: z.number().int().optional().describe("Member ID from nexudus_find_person. Omit to book without a member."),
+					internal_notes: z.string().optional().describe("Internal notes visible only to admins, not to the member"),
+					tentative: z.boolean().optional().describe("If true, booking requires admin approval before confirming (default false)"),
+					override_price: z.number().optional().describe("Override the default price for this booking (admin-set fixed price)"),
+				},
+				async ({ resource_id, from_time, to_time, coworker_id, internal_notes, tentative, override_price }) => {
+					const missing = nxMissingConfig();
+					if (missing.length) return jsonResponse(blocked("Nexudus API configuration is incomplete.", { missing }));
+					if (nxDryRun) return jsonResponse(blocked("NEXUDUS_DRY_RUN is enabled. Set NEXUDUS_DRY_RUN=false to create bookings.", { resource_id, from_time, to_time }));
+					const payload: Record<string, unknown> = {
+						ResourceId: resource_id,
+						FromTime: from_time,
+						ToTime: to_time,
+						Repeats: 0,
+						WhichBookingsToUpdate: 0,
+						Online: true,
+					};
+					if (coworker_id !== undefined) payload.CoworkerId = coworker_id;
+					if (internal_notes) payload.InternalNotes = internal_notes;
+					if (tentative !== undefined) payload.Tentative = tentative;
+					if (override_price !== undefined) payload.OverridePrice = override_price;
+					const result = await nexudusRequest("/api/spaces/bookings", { method: "POST", body: JSON.stringify(payload) });
+					return jsonResponse(ok({
+						booking_created: result.WasSuccessful ?? true,
+						booking_id: result.Id || result.Value,
+						message: result.Message || null,
+					}));
+				}
+			);
+
+			this.server.tool(
+				"nexudus_cancel_booking",
+				"Cancel (permanently delete) a Nexudus booking by ID. Use nexudus_list_bookings to find the booking ID first.",
+				{
+					booking_id: z.number().int().positive().describe("Booking ID to cancel"),
+				},
+				async ({ booking_id }) => {
+					const missing = nxMissingConfig();
+					if (missing.length) return jsonResponse(blocked("Nexudus API configuration is incomplete.", { missing }));
+					if (nxDryRun) return jsonResponse(blocked("NEXUDUS_DRY_RUN is enabled. Set NEXUDUS_DRY_RUN=false to cancel bookings.", { booking_id }));
+					const result = await nexudusRequest(`/api/spaces/bookings/${booking_id}`, { method: "DELETE" });
+					return jsonResponse(ok({
+						booking_cancelled: result.WasSuccessful ?? true,
+						booking_id,
+						message: result.Message || null,
+					}));
+				}
+			);
+
+			// ── Microsoft Outlook (Graph API) ─────────────────────────────────────────
 
 		const msMissingConfig = (): string[] => {
 			const missing: string[] = [];
