@@ -12,8 +12,9 @@ import type { Props } from "./utils";
 const ALLOWED_EMAILS = new Set<string>([
 	"jarred@altrwork.com",
 	"robidouxj@sp-ark-labs.com",
-	// TODO: add Edwin's Microsoft email
-	// TODO: add marketing staff emails when onboarded
+	"deeke@tbinnovates.com",
+	"bernardc@sp-ark-labs.com",
+	"ryanc@sp-ark-labs.com",
 ]);
 
 // ─── Shared helpers ─────────────────────────────────────────────────────────────
@@ -119,9 +120,12 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 	async init() {
 		// Gate every tool behind the allowlist. Non-allowed users authenticate but get
 		// no tools, so they cannot reach building access / member provisioning.
+		console.log(`[auth] email from token: "${this.props!.email}"`);
 		if (!ALLOWED_EMAILS.has(this.props!.email)) {
+			console.log(`[auth] blocked: not in allowlist`);
 			return;
 		}
+		console.log(`[auth] allowed`);
 
 		const env = this.env;
 

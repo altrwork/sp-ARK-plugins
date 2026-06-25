@@ -46,13 +46,7 @@ function parseJwtPayload(token: string): Record<string, unknown> {
 
 const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>();
 
-function redirectToMicrosoft(
-	request: Request,
-	stateToken: string,
-	clientId: string,
-	tenantId: string,
-	extraHeaders: Record<string, string> = {},
-) {
+function buildMicrosoftAuthUrl(request: Request, stateToken: string, clientId: string, tenantId: string): string {
 	const url = new URL(msAuthUrl(tenantId));
 	url.searchParams.set("client_id", clientId);
 	url.searchParams.set("response_type", "code");
@@ -60,10 +54,18 @@ function redirectToMicrosoft(
 	url.searchParams.set("scope", MS_SCOPES);
 	url.searchParams.set("state", stateToken);
 	url.searchParams.set("response_mode", "query");
-	return new Response(null, {
-		headers: { ...extraHeaders, location: url.href },
+	return url.href;
+}
+
+function redirectToMicrosoft(request: Request, stateToken: string, clientId: string, tenantId: string, cookies: string[]) {
+	const response = new Response(null, {
+		headers: { location: buildMicrosoftAuthUrl(request, stateToken, clientId, tenantId) },
 		status: 302,
 	});
+	for (const cookie of cookies) {
+		response.headers.append("Set-Cookie", cookie);
+	}
+	return response;
 }
 
 app.get("/authorize", async (c) => {
@@ -74,7 +76,7 @@ app.get("/authorize", async (c) => {
 	if (await isClientApproved(c.req.raw, clientId, c.env.COOKIE_ENCRYPTION_KEY)) {
 		const { stateToken } = await createOAuthState(oauthReqInfo, c.env.OAUTH_KV);
 		const { setCookie } = await bindStateToSession(stateToken);
-		return redirectToMicrosoft(c.req.raw, stateToken, c.env.MS_CLIENT_ID, c.env.MS_TENANT_ID, { "Set-Cookie": setCookie });
+		return redirectToMicrosoft(c.req.raw, stateToken, c.env.MS_CLIENT_ID, c.env.MS_TENANT_ID, [setCookie]);
 	}
 
 	const { token: csrfToken, setCookie } = generateCSRFProtection();
@@ -117,17 +119,7 @@ app.post("/authorize", async (c) => {
 		const { stateToken } = await createOAuthState(state.oauthReqInfo, c.env.OAUTH_KV);
 		const { setCookie: sessionCookie } = await bindStateToSession(stateToken);
 
-		const headers = new Headers();
-		headers.append("Set-Cookie", approvedCookie);
-		headers.append("Set-Cookie", sessionCookie);
-
-		return redirectToMicrosoft(
-			c.req.raw,
-			stateToken,
-			c.env.MS_CLIENT_ID,
-			c.env.MS_TENANT_ID,
-			Object.fromEntries(headers),
-		);
+		return redirectToMicrosoft(c.req.raw, stateToken, c.env.MS_CLIENT_ID, c.env.MS_TENANT_ID, [approvedCookie, sessionCookie]);
 	} catch (error: any) {
 		if (error instanceof OAuthError) return error.toResponse();
 		return c.text(`Internal server error: ${error.message}`, 500);
