@@ -1,11 +1,8 @@
 # sp-ARK Operations — Remote MCP Server (Cloudflare Worker)
 
-A single remote MCP server that exposes the BossHub, Verkada, and Nexudus onboarding
-tools over Streamable HTTP, so they can be used from **Claude Cowork** and **Claude.ai**
+A single remote MCP server that exposes BossHub, Verkada, Nexudus, and Outlook tools
+over Streamable HTTP, so they can be used from **Claude Cowork** and **Claude.ai**
 Custom Connectors — no local Node.js, no per-user API keys.
-
-This is the hosted counterpart to the local `operations/mcp-servers/*` stdio servers and
-the `operations/mcpb` bundle. All three distributions share the same nine tools.
 
 ## How it works
 
@@ -13,30 +10,26 @@ the `operations/mcpb` bundle. All three distributions share the same nine tools.
 Claude.ai / Cowork              Cloudflare Worker                    Upstream APIs
 ┌──────────────┐  Custom   ┌──────────────────────────────┐        ┌───────────────┐
 │ Custom       │ Connector │ OAuthProvider                 │        │ BossHub       │
-│ Connector    │ ──HTTPS─▶ │  ├─ GitHub login (/authorize) │        │ Verkada       │
+│ Connector    │ ──HTTPS─▶ │  ├─ Microsoft login           │        │ Verkada       │
 │  /mcp        │           │  └─ /mcp → OperationsMCP      │ ─────▶ │ Nexudus       │
-└──────────────┘           │       (9 tools, allowlisted)  │ secrets└───────────────┘
-                           └──────────────────────────────┘
+└──────────────┘           │       (tools, allowlisted)    │ secrets│ Outlook       │
+                           └──────────────────────────────┘        └───────────────┘
 ```
 
-- **Caller auth = GitHub OAuth.** Users sign in with GitHub. Only GitHub usernames in
-  `ALLOWED_USERNAMES` (in `src/index.ts`) get the tools; everyone else authenticates but
-  sees nothing. These tools write to building access + member systems, so keep the list tight.
-- **Upstream credentials** (BossHub token, Verkada key, Nexudus token) are stored once as
-  **Worker secrets** — never entered by users, never in the repo.
-
-> **Why GitHub OAuth and not email one-time PIN?** Cloudflare Access (which provides email
-> OTP) can only protect a domain that's an active **zone** in your Cloudflare account. This
-> Worker runs on a `*.workers.dev` URL, which is not your zone, so Access can't gate it.
-> GitHub OAuth is implemented inside the Worker itself and needs no custom domain. If you
-> later add a domain to Cloudflare, you can switch to Access + email OTP.
+- **Caller auth = Microsoft OAuth.** Users sign in with their Microsoft account. Only emails in
+  `ALLOWED_EMAILS` (in `src/index.ts`) get the tools; everyone else authenticates but
+  sees nothing. Keep this list tight — these tools write to building access and member systems.
+- **Upstream credentials** are stored once as **Worker secrets** — never entered by users, never in the repo.
 
 ## Tools
 
-`bosshub_list_member_inquiries`, `bosshub_get_member_inquiry`,
-`verkada_find_access_user`, `verkada_create_access_user`, `verkada_list_access_groups`,
-`verkada_add_user_to_access_group`,
-`nexudus_find_person`, `nexudus_create_person`, `nexudus_assign_booking_access`.
+**BossHub:** `bosshub_list_forms`, `bosshub_list_submissions`, `bosshub_get_submission`
+
+**Verkada:** `verkada_find_access_user`, `verkada_create_access_user`, `verkada_list_access_groups`, `verkada_add_user_to_access_group`
+
+**Nexudus:** `nexudus_find_person`, `nexudus_create_person`, `nexudus_assign_booking_access`, `nexudus_list_resources`, `nexudus_list_bookings`, `nexudus_create_booking`, `nexudus_cancel_booking`
+
+**Outlook:** `outlook_create_draft`
 
 Deployed URL: `https://sp-ark-operations-mcp.jarred-823.workers.dev`
 Connector endpoint: that URL + `/mcp`.
@@ -52,41 +45,41 @@ cd operations/mcp-servers/remote
 npm install
 ```
 
-### 2. Create a GitHub OAuth App
+### 2. Create a Microsoft (Entra) OAuth App
 
-GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**:
+Azure Portal → **App registrations → New registration**:
 
-- **Application name:** `sp-ARK Operations MCP`
-- **Homepage URL:** `https://sp-ark-operations-mcp.jarred-823.workers.dev`
-- **Authorization callback URL:** `https://sp-ark-operations-mcp.jarred-823.workers.dev/callback`
+- **Name:** `sp-ARK Operations MCP`
+- **Redirect URI:** `https://sp-ark-operations-mcp.jarred-823.workers.dev/callback`
 
-Register it, copy the **Client ID**, and generate a **Client Secret**.
+Copy the **Client ID** and generate a **Client Secret**. Set `MS_CLIENT_ID` in `wrangler.jsonc` vars and the secret below.
 
 ### 3. Set the secrets
-
-`COOKIE_ENCRYPTION_KEY` and the three upstream API secrets are already set. Add the GitHub
-app credentials:
-
-```bash
-npx wrangler secret put GITHUB_CLIENT_ID
-npx wrangler secret put GITHUB_CLIENT_SECRET
-```
 
 Full secret list (for reference / re-deploys on a new account):
 
 | Secret | Source |
 |---|---|
-| `GITHUB_CLIENT_ID` | GitHub OAuth app |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth app |
 | `COOKIE_ENCRYPTION_KEY` | `openssl rand -hex 32` |
+| `MS_CLIENT_SECRET` | Azure app client secret |
 | `BOSSHUB_ACCESS_TOKEN` | BossHub / LeadConnector (forms.readonly) |
 | `VERKADA_API_KEY` | Verkada |
-| `NEXUDUS_ACCESS_TOKEN` | Nexudus |
+| `NEXUDUS_USERNAME` | Nexudus admin email |
+| `NEXUDUS_PASSWORD` | Nexudus admin password |
 
-### 4. Add allowed GitHub usernames
+```bash
+npx wrangler secret put COOKIE_ENCRYPTION_KEY
+npx wrangler secret put MS_CLIENT_SECRET
+npx wrangler secret put BOSSHUB_ACCESS_TOKEN
+npx wrangler secret put VERKADA_API_KEY
+npx wrangler secret put NEXUDUS_USERNAME
+npx wrangler secret put NEXUDUS_PASSWORD
+```
 
-Edit `ALLOWED_USERNAMES` in `src/index.ts` — add each operator's GitHub username
-(yours, Edwin's). Anyone not listed is denied all tools. Edit + redeploy to change it.
+### 4. Add allowed Microsoft emails
+
+Edit `ALLOWED_EMAILS` in `src/index.ts` — add each operator's Microsoft account email.
+Anyone not listed is denied all tools. Edit + redeploy to change it.
 
 ### 5. Deploy
 
@@ -106,10 +99,9 @@ npx wrangler dev                 # serves http://localhost:8788/mcp
 ## Connect from Claude
 
 1. Claude.ai (or Cowork) → **Settings → Connectors → Add custom connector**.
-2. Enter the `/mcp` URL.
-3. Complete the GitHub login + approval when prompted.
-4. If your GitHub username is allowlisted, the nine onboarding tools appear and
-   `/new-member-onboarding` runs end-to-end with no local setup.
+2. Enter `https://sp-ark-operations-mcp.jarred-823.workers.dev/mcp`.
+3. Complete the Microsoft login when prompted.
+4. If your email is in `ALLOWED_EMAILS`, all tools appear automatically.
 
 ---
 

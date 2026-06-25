@@ -60,9 +60,9 @@ Each skill is a folder containing a `SKILL.md`. Supporting files stay inside tha
 **Auth:** GitHub OAuth — only `JarredR092699` and `edwin727` get tools
 **Deploy:** `cd operations/mcp-servers/remote && npm run deploy`
 
-Tools: BossHub inquiry lookup, Verkada access user management, Nexudus member creation, Outlook draft creation (client credentials via Edwin's Microsoft account).
+Tools: BossHub inquiry lookup, Verkada access user management, Nexudus member creation and room booking, Outlook draft creation (client credentials via Edwin's Microsoft account).
 
-Wrangler secrets: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `COOKIE_ENCRYPTION_KEY`, `BOSSHUB_ACCESS_TOKEN`, `VERKADA_API_KEY`, `NEXUDUS_ACCESS_TOKEN`, `MS_CLIENT_SECRET`
+Wrangler secrets: `COOKIE_ENCRYPTION_KEY`, `BOSSHUB_ACCESS_TOKEN`, `VERKADA_API_KEY`, `NEXUDUS_USERNAME`, `NEXUDUS_PASSWORD`, `MS_CLIENT_SECRET`
 
 ### CEO Tools Worker (`ceo-tools/mcp-servers/remote/`)
 
@@ -145,6 +145,8 @@ New member onboarding across agreements, building access, member portal, and Sla
 **Verkada:**
 - All Access group ID: `1018efcf-5d11-4a3d-b01a-57bd8d3cd346`
 - Region: `api`
+
+**Nexudus room booking tools:** `nexudus_list_resources`, `nexudus_list_bookings`, `nexudus_create_booking` (params: `resource_id`, `from_time`, `to_time` in UTC, optional `coworker_id`, `override_price`, `internal_notes`, `tentative`), `nexudus_cancel_booking`
 
 **Nexudus plan tariff IDs:**
 | Plan | Tariff ID |
