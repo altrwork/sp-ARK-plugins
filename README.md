@@ -2,49 +2,26 @@
 
 # sp-ARK Plugins
 
-AI agent plugins for [Claude Code](https://claude.ai/code) and [Claude.ai](https://claude.ai), built for the sp-ARK Labs startup accelerator. Each plugin adds slash-command skills that automate operations workflows.
-
-## Plugins
-
-### Operations (`sp-ark-operations`)
-
-New member onboarding and front desk operations. Connects BossHub, DocuSign, Verkada, Nexudus, and Outlook through a single remote MCP server.
-
-| Skill | Usage |
-|---|---|
-| `/send-member-agreement` | Read a BossHub inquiry and send the membership agreement via DocuSign |
-| `/activate-member-access` | After signing: create Verkada building access, Nexudus member account, and draft a welcome email |
-
-Room booking is available directly through the MCP tools (`nexudus_list_resources`, `nexudus_create_booking`, etc.) — no skill needed, just ask Claude to book a room.
-
-**Remote MCP server:** `https://sp-ark-operations-mcp.jarred-823.workers.dev/mcp` — add as a custom connector in claude.ai and sign in with your Microsoft account. See [`operations/mcp-servers/remote/README.md`](operations/mcp-servers/remote/README.md).
-
-### Marketing (`sp-ark-marketing`)
-
-Event marketing outreach and intern matching.
-
-| Skill | Usage |
-|---|---|
-| `/scrape-inbox` | Scan Gmail for new contacts and append them to the distribution list |
-| `/draft-invites` | Draft personalized Gmail invites for an event to all uninvited contacts |
-| `/match-interns` | Match intern applicants to member companies by skills and availability |
-
-Requires Gmail and Google Drive connected via claude.ai integrations.
-
-### Community Management (`sp-ark-community`)
-
-Expense reporting and event rental agreements.
-
-| Skill | Usage |
-|---|---|
-| `/expense-report` | Process PDF receipts and append categorized transactions to a local Excel report |
-| `sp-ark-event-agreement` | Fill the event rental agreement PDF from a Microsoft Forms submission |
+AI agent plugins built for the sp-ARK Labs startup accelerator. Skills run in [Claude Code](https://claude.ai/code) and [Claude.ai](https://claude.ai) and automate day-to-day operations across onboarding, marketing, and community management.
 
 ---
 
-## Install
+## Connect to Claude
 
-Add this repo as a marketplace in Claude Code, then install the plugins you need:
+### Claude.ai (web)
+
+The operations tools run on a shared remote MCP server — no local setup needed.
+
+1. Go to **claude.ai → Settings → Connectors → Add custom connector**
+2. Enter: `https://sp-ark-operations-mcp.jarred-823.workers.dev/mcp`
+3. Sign in with your **sp-ARK Microsoft account** when prompted
+4. If your email is on the allowlist, all tools appear automatically
+
+> To be added to the allowlist, contact Jarred.
+
+### Claude Code (desktop)
+
+Install plugins from the marketplace:
 
 ```
 /plugin marketplace add altrwork/sp-ARK-plugins
@@ -52,6 +29,41 @@ Add this repo as a marketplace in Claude Code, then install the plugins you need
 /plugin install sp-ark-marketing@sp-ark-plugins
 /plugin install sp-ark-community@sp-ark-plugins
 ```
+
+---
+
+## Skills
+
+### Operations
+
+New member onboarding and front desk workflows. Backed by the remote MCP server (BossHub, Verkada, Nexudus, Outlook).
+
+| Skill | What it does |
+|---|---|
+| `/send-member-agreement` | Pull a BossHub inquiry, confirm details, and send the DocuSign membership agreement |
+| `/activate-member-access` | After signing: create Verkada building access, Nexudus account, and draft a welcome email |
+| Book a room | Ask Claude to book a meeting room — no slash command needed, just say the room and time |
+
+### Marketing
+
+Event outreach and intern matching.
+
+| Skill | What it does |
+|---|---|
+| `/scrape-inbox` | Scan the CEO's Gmail for new contacts and add them to the distribution list |
+| `/draft-invites` | Draft personalized event invitations for all uninvited contacts |
+| `/match-interns` | Match intern applicants to member companies by skills and availability |
+
+Requires Gmail and Google Drive connected in claude.ai.
+
+### Community Management
+
+Expense reporting and event agreements.
+
+| Skill | What it does |
+|---|---|
+| `/expense-report` | Process PDF receipts and append categorized rows to the monthly Excel report |
+| `sp-ark-event-agreement` | Fill the event rental agreement PDF from a Microsoft Forms submission |
 
 ---
 
