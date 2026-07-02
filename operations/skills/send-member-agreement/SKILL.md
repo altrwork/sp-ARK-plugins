@@ -124,6 +124,8 @@ Set `monthly_membership_qty` to `1` and calculate `monthly_membership_subtotal` 
 
 Set `mail_service_qty` to `0` or `1` to match whether mail service is selected. Calculate all subtotals and `total_monthly` (sum of all three subtotals) before sending.
 
+In the **1.3 Price Details** table, prefix price and subtotal fields with `$` (e.g. `$300`, `$1,000`) — this applies to `monthly_membership_price`, both subtotal fields, `mail_service_price`, `other_monthly_fees_price`, and `total_monthly`. Qty fields (`monthly_membership_qty`, `mail_service_qty`, `other_monthly_fees_qty`) stay plain numbers with no `$`.
+
 Do not send the DocuSign until pricing add-ons are confirmed. Do not leave locked pricing fields blank.
 
 ### Step 5 - Send DocuSign agreement
@@ -150,15 +152,15 @@ Tabs on the `Founder` role — map from BossHub data and operator-provided field
 |---|---|
 | `member_organization` | `company_name` |
 | `company_name` | `company_name` |
-| `member_representative` | `first_name` + `last_name` |
+| `member_representative` | `first_name` + `last_name` + `phone`, formatted `[first_name] [last_name] — [phone]` |
 | `registered_individuals` | `additional_workspace_users` |
 | `membership_type` | `interested_membership_option` |
 | `membership_start_date` | `desired_start_date` |
-| `membership_end_date` | Collected from operator in Step 4 |
-| `membership_length` | Collected from operator in Step 4 |
-| `max_occupancy` | Collected from operator in Step 4 |
+| `membership_end_date` | Auto-derived in Step 4 |
+| `membership_length` | Auto-derived in Step 4 |
+| `max_occupancy` | Auto-derived in Step 4 |
 
-Tabs on the `ARK` role — all collected from operator in Step 4.
+Tabs on the `ARK` role — pricing fields collected from operator in Step 4. Enter all price values with a leading `$` per the formatting rule above.
 
 ### Step 6 - Report result
 
