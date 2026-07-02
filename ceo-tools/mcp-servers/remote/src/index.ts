@@ -34,9 +34,9 @@ function colIndexToLetter(index: number): string {
 export class CeoToolsMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({ name: "sp-ark-ceo-tools", version: "0.1.0" });
 
-	// Cached refreshed token (DO instance memory)
-	private cachedToken: string | null = null;
-	private cachedTokenExpiresAt = 0;
+	// Client credentials token cache (DO instance memory)
+	private msAccessToken: string | null = null;
+	private msTokenExpiresAt = 0;
 
 	async init() {
 		const env = this.env;
@@ -44,39 +44,26 @@ export class CeoToolsMCP extends McpAgent<Env, Record<string, never>, Props> {
 		// ── Microsoft Graph token management ─────────────────────────────────
 
 		const getMsToken = async (): Promise<string> => {
-			// Use DO-cached refreshed token if still valid
-			if (this.cachedToken && Date.now() < this.cachedTokenExpiresAt) {
-				return this.cachedToken;
-			}
-			// Use original props token if still valid
-			if (this.props?.accessToken && Date.now() < (this.props.tokenExpiresAt || 0)) {
-				this.cachedToken = this.props.accessToken;
-				this.cachedTokenExpiresAt = this.props.tokenExpiresAt;
-				return this.cachedToken;
-			}
-			// Refresh using the refresh token from props
-			if (!this.props?.refreshToken) {
-				throw new Error("Microsoft session expired. Please reconnect the MCP server.");
+			if (this.msAccessToken && Date.now() < this.msTokenExpiresAt) {
+				return this.msAccessToken;
 			}
 			const params = new URLSearchParams({
-				grant_type: "refresh_token",
+				grant_type: "client_credentials",
 				client_id: env.MS_CLIENT_ID,
 				client_secret: env.MS_CLIENT_SECRET,
-				refresh_token: this.props.refreshToken,
-				scope: "offline_access Files.ReadWrite Sites.Read.All Mail.ReadWrite Mail.Send",
+				scope: "https://graph.microsoft.com/.default",
 			});
-			const res = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
-				method: "POST",
-				headers: { "content-type": "application/x-www-form-urlencoded" },
-				body: params.toString(),
-			});
+			const res = await fetch(
+				`https://login.microsoftonline.com/${env.MS_TENANT_ID}/oauth2/v2.0/token`,
+				{ method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: params.toString() }
+			);
 			const body: any = await res.json().catch(() => ({}));
 			if (!res.ok || !body.access_token) {
-				throw new Error(`Token refresh failed: ${JSON.stringify(body)}`);
+				throw new Error(`Token request failed: ${JSON.stringify(body)}`);
 			}
-			this.cachedToken = body.access_token;
-			this.cachedTokenExpiresAt = Date.now() + ((body.expires_in ?? 3600) - 60) * 1000;
-			return this.cachedToken as string;
+			this.msAccessToken = body.access_token;
+			this.msTokenExpiresAt = Date.now() + ((body.expires_in ?? 3600) - 60) * 1000;
+			return this.msAccessToken as string;
 		};
 
 		const graphRequest = async (path: string, options: RequestInit = {}) => {
@@ -266,7 +253,7 @@ export class CeoToolsMCP extends McpAgent<Env, Record<string, never>, Props> {
 				unread_only: z.boolean().default(false).optional(),
 			},
 			async ({ folder = "inbox", limit = 20, unread_only = false }) => {
-				let url = `/me/mailFolders/${folder}/messages?$top=${limit}&$orderby=receivedDateTime desc&$select=id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview`;
+				let url = `/users/${encodeURIComponent(env.MS_SENDER_EMAIL)}/mailFolders/${folder}/messages?$top=${limit}&$orderby=receivedDateTime desc&$select=id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview`;
 				if (unread_only) url += "&$filter=isRead eq false";
 				const result = await graphRequest(url);
 				const messages = (result.value || []).map((m: any) => ({
@@ -292,7 +279,7 @@ export class CeoToolsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			},
 			async ({ query, limit = 20 }) => {
 				const result = await graphRequest(
-					`/me/messages?$search="${encodeURIComponent(query)}"&$top=${limit}&$select=id,subject,from,toRecipients,receivedDateTime,isRead,bodyPreview`
+					`/users/${encodeURIComponent(env.MS_SENDER_EMAIL)}/messages?$search="${encodeURIComponent(query)}"&$top=${limit}&$select=id,subject,from,toRecipients,receivedDateTime,isRead,bodyPreview`
 				);
 				const messages = (result.value || []).map((m: any) => ({
 					id: m.id,
@@ -315,7 +302,7 @@ export class CeoToolsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			},
 			async ({ message_id }) => {
 				const m = await graphRequest(
-					`/me/messages/${message_id}?$select=id,subject,from,toRecipients,ccRecipients,receivedDateTime,body,hasAttachments,conversationId`
+					`/users/${encodeURIComponent(env.MS_SENDER_EMAIL)}/messages/${message_id}?$select=id,subject,from,toRecipients,ccRecipients,receivedDateTime,body,hasAttachments,conversationId`
 				);
 				return jsonResponse(ok({
 					id: m.id,
@@ -351,7 +338,7 @@ export class CeoToolsMCP extends McpAgent<Env, Record<string, never>, Props> {
 				if (cc?.length) {
 					message.ccRecipients = cc.map((addr) => ({ emailAddress: { address: addr } }));
 				}
-				const result = await graphRequest("/me/messages", {
+				const result = await graphRequest("/users/${encodeURIComponent(env.MS_SENDER_EMAIL)}/messages", {
 					method: "POST",
 					body: JSON.stringify(message),
 				});
@@ -383,7 +370,7 @@ export class CeoToolsMCP extends McpAgent<Env, Record<string, never>, Props> {
 				if (cc?.length) {
 					message.ccRecipients = cc.map((addr) => ({ emailAddress: { address: addr } }));
 				}
-				await graphRequest("/me/sendMail", {
+				await graphRequest("/users/${encodeURIComponent(env.MS_SENDER_EMAIL)}/sendMail", {
 					method: "POST",
 					body: JSON.stringify({ message, saveToSentItems: true }),
 				});
@@ -401,8 +388,8 @@ export class CeoToolsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			},
 			async ({ message_id, body_html, reply_all = false }) => {
 				const endpoint = reply_all
-					? `/me/messages/${message_id}/replyAll`
-					: `/me/messages/${message_id}/reply`;
+					? `/users/${encodeURIComponent(env.MS_SENDER_EMAIL)}/messages/${message_id}/replyAll`
+					: `/users/${encodeURIComponent(env.MS_SENDER_EMAIL)}/messages/${message_id}/reply`;
 				await graphRequest(endpoint, {
 					method: "POST",
 					body: JSON.stringify({

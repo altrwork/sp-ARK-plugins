@@ -13,30 +13,59 @@ import {
 } from "./workers-oauth-utils";
 import type { Props } from "./utils";
 
-const MS_SCOPES =
-	"offline_access openid profile Files.ReadWrite Sites.Read.All Mail.ReadWrite Mail.Send";
-const MS_AUTH_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
-const MS_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+// Identity only — scopes are minimal because we only need to know who the user
+// is. Graph API calls use client credentials, not the user's delegated token.
+//
+// Security note: we use the tenant-specific endpoint (not /common/) so that only
+// accounts from the sp-ARK Azure tenant can authenticate. This prevents nOAuth
+// spoofing, where an attacker in another tenant creates an account whose `mail`
+// field matches a whitelisted email address. Identity is read from the signed ID
+// token, not from the /me endpoint.
+const MS_SCOPES = "offline_access openid profile email";
+
+function msAuthUrl(tenantId: string) {
+	return `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize`;
+}
+function msTokenUrl(tenantId: string) {
+	return `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+}
+
+// Parse JWT payload without signature verification. Safe here because the token
+// was received directly from Microsoft's token endpoint using our client_secret
+// over HTTPS — it was never handed to us by a third party.
+function parseJwtPayload(token: string): Record<string, unknown> {
+	try {
+		const parts = token.split(".");
+		if (parts.length < 2) return {};
+		const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+		return JSON.parse(atob(payload));
+	} catch {
+		return {};
+	}
+}
 
 const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>();
 
-function redirectToMicrosoft(
-	request: Request,
-	stateToken: string,
-	clientId: string,
-	extraHeaders: Record<string, string> = {},
-) {
-	const url = new URL(MS_AUTH_URL);
+function buildMicrosoftAuthUrl(request: Request, stateToken: string, clientId: string, tenantId: string): string {
+	const url = new URL(msAuthUrl(tenantId));
 	url.searchParams.set("client_id", clientId);
 	url.searchParams.set("response_type", "code");
 	url.searchParams.set("redirect_uri", new URL("/callback", request.url).href);
 	url.searchParams.set("scope", MS_SCOPES);
 	url.searchParams.set("state", stateToken);
 	url.searchParams.set("response_mode", "query");
-	return new Response(null, {
-		headers: { ...extraHeaders, location: url.href },
+	return url.href;
+}
+
+function redirectToMicrosoft(request: Request, stateToken: string, clientId: string, tenantId: string, cookies: string[]) {
+	const response = new Response(null, {
+		headers: { location: buildMicrosoftAuthUrl(request, stateToken, clientId, tenantId) },
 		status: 302,
 	});
+	for (const cookie of cookies) {
+		response.headers.append("Set-Cookie", cookie);
+	}
+	return response;
 }
 
 app.get("/authorize", async (c) => {
@@ -47,7 +76,7 @@ app.get("/authorize", async (c) => {
 	if (await isClientApproved(c.req.raw, clientId, c.env.COOKIE_ENCRYPTION_KEY)) {
 		const { stateToken } = await createOAuthState(oauthReqInfo, c.env.OAUTH_KV);
 		const { setCookie } = await bindStateToSession(stateToken);
-		return redirectToMicrosoft(c.req.raw, stateToken, c.env.MS_CLIENT_ID, { "Set-Cookie": setCookie });
+		return redirectToMicrosoft(c.req.raw, stateToken, c.env.MS_CLIENT_ID, c.env.MS_TENANT_ID, [setCookie]);
 	}
 
 	const { token: csrfToken, setCookie } = generateCSRFProtection();
@@ -90,16 +119,7 @@ app.post("/authorize", async (c) => {
 		const { stateToken } = await createOAuthState(state.oauthReqInfo, c.env.OAUTH_KV);
 		const { setCookie: sessionCookie } = await bindStateToSession(stateToken);
 
-		const headers = new Headers();
-		headers.append("Set-Cookie", approvedCookie);
-		headers.append("Set-Cookie", sessionCookie);
-
-		return redirectToMicrosoft(
-			c.req.raw,
-			stateToken,
-			c.env.MS_CLIENT_ID,
-			Object.fromEntries(headers),
-		);
+		return redirectToMicrosoft(c.req.raw, stateToken, c.env.MS_CLIENT_ID, c.env.MS_TENANT_ID, [approvedCookie, sessionCookie]);
 	} catch (error: any) {
 		if (error instanceof OAuthError) return error.toResponse();
 		return c.text(`Internal server error: ${error.message}`, 500);
@@ -124,7 +144,6 @@ app.get("/callback", async (c) => {
 	const code = c.req.query("code");
 	if (!code) return c.text("Missing authorization code", 400);
 
-	// Exchange code for tokens. Microsoft returns JSON, not form-encoded.
 	const tokenParams = new URLSearchParams({
 		grant_type: "authorization_code",
 		client_id: c.env.MS_CLIENT_ID,
@@ -134,7 +153,7 @@ app.get("/callback", async (c) => {
 		scope: MS_SCOPES,
 	});
 
-	const tokenResponse = await fetch(MS_TOKEN_URL, {
+	const tokenResponse = await fetch(msTokenUrl(c.env.MS_TENANT_ID), {
 		method: "POST",
 		headers: { "content-type": "application/x-www-form-urlencoded" },
 		body: tokenParams.toString(),
@@ -144,23 +163,25 @@ app.get("/callback", async (c) => {
 		return c.text(`Microsoft token exchange failed: ${JSON.stringify(tokenBody)}`, 500);
 	}
 
-	const { access_token, refresh_token, expires_in } = tokenBody;
-	const tokenExpiresAt = Date.now() + ((expires_in ?? 3600) - 60) * 1000;
+	const { access_token, id_token } = tokenBody;
 
-	// Fetch user profile from Graph
-	const meResponse = await fetch("https://graph.microsoft.com/v1.0/me", {
-		headers: { authorization: `Bearer ${access_token}`, accept: "application/json" },
-	});
-	const me: any = await meResponse.json().catch(() => ({}));
-	const email = me.mail || me.userPrincipalName || "";
-	const name = me.displayName || email;
+	// Read identity from the ID token, not from /me. The token was received directly
+	// from our tenant-specific endpoint using our client_secret, so the claims are
+	// authoritative. Using /me with /common/ is the nOAuth attack vector.
+	const idClaims = parseJwtPayload(id_token || "");
+	const tid = idClaims.tid as string | undefined;
+
+	// Belt-and-suspenders: confirm the token's tenant matches the one we redirected to.
+	if (!tid || tid !== c.env.MS_TENANT_ID) {
+		return c.text("Access denied: Microsoft account is not from the authorized tenant.", 403);
+	}
+
+	const email = ((idClaims.preferred_username || idClaims.email || "") as string).toLowerCase();
+	const name = (idClaims.name || email) as string;
 
 	const { redirectTo } = await c.env.OAUTH_PROVIDER.completeAuthorization({
 		metadata: { label: name },
 		props: {
-			accessToken: access_token,
-			refreshToken: refresh_token || "",
-			tokenExpiresAt,
 			email,
 			name,
 		} as Props,

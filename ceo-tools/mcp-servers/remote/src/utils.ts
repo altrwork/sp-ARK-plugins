@@ -1,9 +1,6 @@
-// Context from Microsoft OAuth, encrypted & stored in the MCP auth token,
-// and provided to CeoToolsMCP as this.props
+// Identity context from Microsoft OAuth, stored in the MCP auth token.
+// Graph API calls use client credentials, not the user's token.
 export type Props = {
 	email: string;
 	name: string;
-	accessToken: string;
-	refreshToken: string;
-	tokenExpiresAt: number; // Unix timestamp in ms
 };

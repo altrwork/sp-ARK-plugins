@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>sp-ARK Labs — AI Automation Roadmap</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f5f7;
+      color: #1d1d1f;
+      line-height: 1.6;
+    }
+
+    /* ── Header ── */
+    header {
+      background: #0a0a0f;
+      color: #fff;
+      padding: 48px 40px 36px;
+    }
+    header .eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #8e8ea0;
+      margin-bottom: 12px;
+    }
+    header h1 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+    header p {
+      font-size: 15px;
+      color: #8e8ea0;
+    }
+
+    /* ── Layout ── */
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    /* ── Section headers ── */
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #6e6e80;
+      margin-bottom: 16px;
+      margin-top: 48px;
+    }
+
+    /* ── Plugin grid ── */
+    .plugin-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 12px;
+    }
+
+    .plugin-card {
+      background: #fff;
+      border: 1px solid #e5e5ea;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .plugin-card .plugin-name {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .plugin-card .plugin-desc {
+      font-size: 12px;
+      color: #6e6e80;
+      margin-bottom: 14px;
+    }
+    .skill-list {
+      list-style: none;
+    }
+    .skill-list li {
+      font-size: 12px;
+      color: #3a3a4a;
+      padding: 3px 0;
+      border-top: 1px solid #f0f0f5;
+    }
+    .skill-list li:first-child { border-top: none; }
+    .skill-list code {
+      font-family: "SF Mono", Menlo, monospace;
+      font-size: 11px;
+      background: #f5f5f7;
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: #5856d6;
+    }
+
+    /* ── Status badges ── */
+    .badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-bottom: 10px;
+    }
+    .badge-live     { background: #d1fae5; color: #065f46; }
+    .badge-ready    { background: #dbeafe; color: #1e40af; }
+    .badge-pending  { background: #fef3c7; color: #92400e; }
+    .badge-blocked  { background: #fee2e2; color: #991b1b; }
+    .badge-planned  { background: #f3e8ff; color: #6b21a8; }
+
+    /* ── Team member cards ── */
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+      gap: 16px;
+    }
+
+    .member-card {
+      background: #fff;
+      border: 1px solid #e5e5ea;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .member-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid #f0f0f5;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .member-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .av-becca    { background: #5856d6; }
+    .av-cassandra{ background: #30b0c7; }
+    .av-caitlin  { background: #ff6b6b; }
+    .av-edwin    { background: #34c759; }
+
+    .member-header-text h3 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .member-header-text .role {
+      font-size: 12px;
+      color: #6e6e80;
+    }
+
+    .member-body {
+      padding: 20px 24px;
+    }
+
+    /* ── Task rows ── */
+    .task {
+      padding: 12px 0;
+      border-bottom: 1px solid #f5f5f7;
+    }
+    .task:last-child { border-bottom: none; }
+
+    .task-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .task-title {
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .task-desc {
+      font-size: 12px;
+      color: #6e6e80;
+      line-height: 1.5;
+    }
+
+    /* ── DocuSign flow block ── */
+    .flow-block {
+      background: #f9f9fb;
+      border: 1px solid #e5e5ea;
+      border-radius: 10px;
+      padding: 16px;
+      margin-top: 10px;
+    }
+    .flow-block .flow-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6e6e80;
+      margin-bottom: 10px;
+    }
+    .flow-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 12px;
+    }
+    .step-num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #5856d6;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .step-text { color: #3a3a4a; line-height: 1.45; }
+    .step-text strong { color: #1d1d1f; font-weight: 600; }
+
+    .flow-arrow {
+      font-size: 11px;
+      color: #6e6e80;
+      text-align: center;
+      margin: 2px 0 2px 28px;
+    }
+
+    .blocker-box {
+      background: #fff5f5;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-top: 10px;
+      font-size: 12px;
+      color: #991b1b;
+    }
+    .blocker-box strong { font-weight: 700; }
+
+    /* ── CEO tools detail ── */
+    .tools-box {
+      background: #f0f7ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-top: 10px;
+      font-size: 12px;
+      color: #1e40af;
+    }
+    .tools-box strong { font-weight: 700; }
+    .tools-list {
+      margin-top: 6px;
+      list-style: none;
+    }
+    .tools-list li::before { content: "→ "; font-weight: 700; }
+    .tools-list li { margin-bottom: 2px; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      font-size: 11px;
+      color: #aeaeba;
+      padding: 24px;
+      border-top: 1px solid #e5e5ea;
+      margin-top: 40px;
+    }
+
+    @media (max-width: 640px) {
+      header { padding: 32px 20px 24px; }
+      header h1 { font-size: 24px; }
+      main { padding: 24px 16px 60px; }
+      .team-grid { grid-template-columns: 1fr; }
+      .plugin-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">sp-ARK Labs</div>
+  <h1>AI Automation Roadmap</h1>
+  <p>Claude Code plugins, skills, and team task tracker — June 2026</p>
+</header>
+
+<main>
+
+  <!-- ── Plugins built ── -->
+  <div class="section-label">Plugins built</div>
+  <div class="plugin-grid">
+
+    <div class="plugin-card">
+      <span class="badge badge-live">Live</span>
+      <div class="plugin-name">sp-ARK Operations</div>
+      <div class="plugin-desc">New member onboarding — agreements, building access, member portal</div>
+      <ul class="skill-list">
+        <li><code>/send-member-agreement</code></li>
+        <li><code>/activate-member-access</code></li>
+        <li>BossHub · DocuSign · Verkada · Nexudus · Outlook</li>
+      </ul>
+    </div>
+
+    <div class="plugin-card">
+      <span class="badge badge-live">Live</span>
+      <div class="plugin-name">sp-ARK CEO Tools</div>
+      <div class="plugin-desc">Excel/SharePoint read-write and Outlook for Becca via Claude</div>
+      <ul class="skill-list">
+        <li>Search SharePoint files</li>
+        <li>Read &amp; write Excel worksheets</li>
+        <li>List, read, draft &amp; send Outlook email</li>
+      </ul>
+    </div>
+
+    <div class="plugin-card">
+      <span class="badge badge-ready">Ready</span>
+      <div class="plugin-name">sp-ARK Marketing</div>
+      <div class="plugin-desc">Event outreach — contact scraping, invite drafting, intern matching</div>
+      <ul class="skill-list">
+        <li><code>/inbox-scraper</code></li>
+        <li><code>/draft-invites</code></li>
+        <li><code>/match-interns</code></li>
+      </ul>
+    </div>
+
+    <div class="plugin-card">
+      <span class="badge badge-ready">Ready</span>
+      <div class="plugin-name">sp-ARK Community</div>
+      <div class="plugin-desc">Community operations — expense processing, event agreements</div>
+      <ul class="skill-list">
+        <li><code>/expense-report</code></li>
+        <li>Event rental agreement (MS Forms → PDF)</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- ── Team tasks ── -->
+  <div class="section-label">Team tasks</div>
+  <div class="team-grid">
+
+    <!-- Edwin -->
+    <div class="member-card">
+      <div class="member-header">
+        <div class="member-avatar av-edwin">E</div>
+        <div class="member-header-text">
+          <h3>Edwin</h3>
+          <div class="role">Operations Manager</div>
+        </div>
+      </div>
+      <div class="member-body">
+
+        <div class="task">
+          <div class="task-top">
+            <span class="badge badge-blocked">Blocked</span>
+            <div class="task-title">Get access to DocuSign</div>
+          </div>
+          <div class="task-desc">
+            The full member onboarding workflow is built and deployed. Edwin needs a DocuSign account connected to Claude to run <code>/send-member-agreement</code>. Once connected, the entire intake-to-agreement flow is automated.
+          </div>
+
+          <div class="flow-block">
+            <div class="flow-label">Member onboarding flow (waiting on DocuSign)</div>
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-num">1</div>
+                <div class="step-text">Edwin runs <strong>/send-member-agreement</strong> — Claude reads the BossHub inquiry form and shows matching submissions</div>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="flow-step">
+                <div class="step-num">2</div>
+                <div class="step-text">Edwin confirms member details and pricing add-ons (mail service, any extra fees). All membership pricing is auto-calculated from the form.</div>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="flow-step">
+                <div class="step-num">3</div>
+                <div class="step-text">Claude sends the <strong>spARK new member template</strong> via DocuSign. The Founder (member) signs first — Becca's signature is pre-configured as the second signer and triggers automatically.</div>
+              </div>
+              <div class="flow-arrow">↓</div>
+              <div class="flow-step">
+                <div class="step-num">4</div>
+                <div class="step-text">After the signed agreement is returned, Edwin runs <strong>/activate-member-access</strong> — Verkada building access, Nexudus member portal, and a welcome email draft are created in one pass.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="blocker-box">
+            <strong>Action needed:</strong> Jarred adds the DocuSign connector in Claude. Once connected, both onboarding skills are fully operational with no other setup required.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Becca -->
+    <div class="member-card">
+      <div class="member-header">
+        <div class="member-avatar av-becca">B</div>
+        <div class="member-header-text">
+          <h3>Becca</h3>
+          <div class="role">CEO</div>
+        </div>
+      </div>
+      <div class="member-body">
+
+        <div class="task">
+          <div class="task-top">
+            <span class="badge badge-live">Live</span>
+            <div class="task-title">CEO Tools — Excel &amp; Outlook in Claude</div>
+          </div>
+          <div class="task-desc">
+            Becca can add the CEO Tools connector in Claude (<code>sp-ark-ceo-tools.jarred-823.workers.dev/mcp</code>), sign in with her sp-ARK Microsoft account, and immediately access Excel/SharePoint and Outlook from any Claude conversation.
+          </div>
+          <div class="tools-box">
+            <strong>Available tools after connecting:</strong>
+            <ul class="tools-list">
+              <li>Search SharePoint / OneDrive for Excel files</li>
+              <li>Read rows, append rows, update cells in any workbook</li>
+              <li>List, search, and read Outlook emails</li>
+              <li>Create drafts and send email directly from Claude</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="task">
+          <div class="task-top">
+            <span class="badge badge-pending">In review</span>
+            <div class="task-title">Recalibrate air supply</div>
+          </div>
+          <div class="task-desc">
+            Review and adjust the air supply system at sp-ARK Labs and create a member-facing form for office condition feedback. Waiting on Tridium.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Cassandra -->
+    <div class="member-card">
+      <div class="member-header">
+        <div class="member-avatar av-cassandra">C</div>
+        <div class="member-header-text">
+          <h3>Cassandra</h3>
+          <div class="role">Community Manager</div>
+        </div>
+      </div>
+      <div class="member-body">
+
+        <div class="task">
+          <div class="task-top">
+            <span class="badge badge-ready">Ready to use</span>
+            <div class="task-title">Intern form matcher on BossHub</div>
+          </div>
+          <div class="task-desc">
+            The <code>/match-interns</code> skill is built and ready. It pulls intern applications and member intern requests from BossHub and produces a ranked match report — skills overlap, industry alignment, and availability — with an option to draft introduction emails for confirmed matches.
+          </div>
+          <div class="tools-box">
+            <strong>How to run:</strong>
+            <ul class="tools-list">
+              <li>Type <code>/match-interns</code> in Claude</li>
+              <li>Review the ranked match report</li>
+              <li>Confirm matches to auto-draft intro emails</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Caitlin -->
+    <div class="member-card">
+      <div class="member-header">
+        <div class="member-avatar av-caitlin">C</div>
+        <div class="member-header-text">
+          <h3>Caitlin</h3>
+          <div class="role">Marketing</div>
+        </div>
+      </div>
+      <div class="member-body">
+
+        <div class="task">
+          <div class="task-top">
+            <span class="badge badge-pending">In review</span>
+            <div class="task-title">Revisit Canva automation</div>
+          </div>
+          <div class="task-desc">
+            Review the current state of Canva MCP integration and determine what's feasible. The Canva Connect API supports text and image autofill in templates but does not support changing shape fill colors. The goal is to identify which design workflows can be reliably automated from Claude and which require manual steps in Canva.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+</main>
+
+<footer>
+  sp-ARK Labs · AI Automation · Built with Claude Code · June 2026
+</footer>
+
+</body>
+</html>

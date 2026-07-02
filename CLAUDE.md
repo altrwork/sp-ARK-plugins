@@ -36,7 +36,6 @@ sp-ARK-plugins/
 │       └── draft-invites/
 ├── operations/                       # Plugin: operations workflows
 │   ├── .claude-plugin/plugin.json
-│   ├── agent/                        # Managed agent config (agent.yaml)
 │   ├── mcp-servers/
 │   │   └── remote/                   # Cloudflare Worker (GitHub OAuth)
 │   └── skills/
@@ -129,8 +128,6 @@ New member onboarding across agreements, building access, member portal, and Sla
 **Skills:**
 - `send-member-agreement` — `/send-member-agreement [member name or email]`; reads a BossHub inquiry, confirms details with Edwin, collects pricing, sends the membership agreement via DocuSign.
 - `activate-member-access` — `/activate-member-access [member email]`; confirms signing, creates Verkada access user (All Access group), creates Nexudus member account, drafts Outlook welcome email.
-
-**Managed agent config:** `operations/agent/agent.yaml` — deployed to Claude Console; wraps both skills with full workflow instructions for Edwin.
 
 **BossHub/LeadConnector:**
 - Location ID: `jqh6rxfWtvMIQCKxcDlc`

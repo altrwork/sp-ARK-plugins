@@ -35,6 +35,33 @@ function jsonResponse(payload: unknown) {
 	};
 }
 
+// ─── Microsoft Graph calendar helpers ────────────────────────────────────────────
+
+// Graph wants { dateTime, timeZone } with no offset on dateTime when timeZone is
+// explicit. We always operate in UTC, so strip a trailing "Z" if present.
+function toGraphDateTime(iso: string): { dateTime: string; timeZone: string } {
+	return { dateTime: iso.replace(/Z$/, ""), timeZone: "UTC" };
+}
+
+function normalizeEvent(e: any) {
+	return {
+		id: e.id,
+		subject: e.subject,
+		start: e.start,
+		end: e.end,
+		location: e.location?.displayName || null,
+		organizer: e.organizer?.emailAddress?.address || null,
+		attendees: (e.attendees || []).map((a: any) => ({
+			email: a.emailAddress?.address,
+			name: a.emailAddress?.name,
+			type: a.type,
+			response: a.status?.response,
+		})),
+		is_cancelled: e.isCancelled ?? false,
+		web_link: e.webLink || null,
+	};
+}
+
 // ─── BossHub field mapping ───────────────────────────────────────────────────────
 
 const fieldMap: Record<string, string> = {
@@ -610,6 +637,34 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			return this.msAccessToken as string;
 		};
 
+		const graphRequest = async (path: string, options: RequestInit = {}) => {
+			const token = await getMsToken();
+			const response = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+				...options,
+				headers: {
+					accept: "application/json",
+					"content-type": "application/json",
+					authorization: `Bearer ${token}`,
+					...(options.headers || {}),
+				},
+			});
+			const text = await response.text();
+			let body: any = {};
+			if (text) {
+				try { body = JSON.parse(text); } catch { body = { raw: text }; }
+			}
+			if (!response.ok) {
+				throw new Error(JSON.stringify({ status: response.status, statusText: response.statusText, body }));
+			}
+			return body;
+		};
+
+		const attendeeInput = z.object({
+			email: z.string().email(),
+			name: z.string().optional(),
+			type: z.enum(["required", "optional"]).default("required"),
+		});
+
 		this.server.tool(
 			"outlook_create_draft",
 			"Create a draft email in Outlook for the configured sender (Edwin). Does not send — the user reviews and sends manually.",
@@ -660,6 +715,163 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 					from: env.MS_SENDER_EMAIL,
 					to,
 				}));
+			}
+		);
+
+		this.server.tool(
+			"outlook_list_calendars",
+			"List calendars available in the configured Outlook mailbox. Use to find a calendar_id for outlook_search_events, outlook_create_event, or outlook_update_event when targeting a non-default calendar.",
+			{},
+			async () => {
+				const missing = msMissingConfig();
+				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
+				const mailbox = encodeURIComponent(env.MS_SENDER_EMAIL);
+				const result = await graphRequest(`/users/${mailbox}/calendars`);
+				const calendars = (result.value || []).map((c: any) => ({
+					id: c.id,
+					name: c.name,
+					owner: c.owner?.address || null,
+					can_edit: c.canEdit ?? null,
+					is_default: c.name === "Calendar",
+				}));
+				return jsonResponse(ok({ calendars }));
+			}
+		);
+
+		this.server.tool(
+			"outlook_search_events",
+			"Search or list events on the configured Outlook mailbox. Provide start_date/end_date to list a date range, a text query to search subject/body, or both. Returns event IDs needed for outlook_update_event.",
+			{
+				query: z.string().optional().describe("Free-text search across subject and body"),
+				start_date: z.string().optional().describe("Range start, ISO 8601 UTC (e.g. 2024-06-25T00:00:00Z). Defaults to now."),
+				end_date: z.string().optional().describe("Range end, ISO 8601 UTC. Defaults to 7 days after start_date."),
+				calendar_id: z.string().optional().describe("Calendar ID from outlook_list_calendars. Omit to use the default calendar."),
+				limit: z.number().int().positive().max(50).default(25),
+			},
+			async ({ query, start_date, end_date, calendar_id, limit }) => {
+				const missing = msMissingConfig();
+				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
+				const mailbox = encodeURIComponent(env.MS_SENDER_EMAIL);
+				const base = calendar_id
+					? `/users/${mailbox}/calendars/${encodeURIComponent(calendar_id)}`
+					: `/users/${mailbox}`;
+
+				let result: any;
+				if (query) {
+					const params = new URLSearchParams({ $search: `"${query}"`, $top: String(limit) });
+					if (start_date) {
+						let filter = `start/dateTime ge '${start_date.replace(/Z$/, "")}'`;
+						if (end_date) filter += ` and end/dateTime le '${end_date.replace(/Z$/, "")}'`;
+						params.set("$filter", filter);
+					}
+					// $search requires ConsistencyLevel: eventual and is incompatible with $orderby.
+					result = await graphRequest(`${base}/events?${params.toString()}`, {
+						headers: { ConsistencyLevel: "eventual" },
+					});
+				} else {
+					const startDateTime = start_date || new Date().toISOString();
+					const endDateTime = end_date || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+					const params = new URLSearchParams({
+						startDateTime: startDateTime.replace(/Z$/, ""),
+						endDateTime: endDateTime.replace(/Z$/, ""),
+						$top: String(limit),
+						$orderby: "start/dateTime",
+					});
+					result = await graphRequest(`${base}/calendarView?${params.toString()}`);
+				}
+				const events = (result.value || []).map(normalizeEvent);
+				return jsonResponse(ok({ events, count: events.length }));
+			}
+		);
+
+		this.server.tool(
+			"outlook_create_event",
+			"Create a calendar event/meeting on the configured Outlook mailbox. If attendees are provided, Microsoft Graph automatically emails them a meeting invitation. Use ISO 8601 UTC for start_time/end_time (e.g. 2024-06-25T14:00:00Z).",
+			{
+				subject: z.string().min(1),
+				start_time: z.string().describe("Start time, ISO 8601 UTC"),
+				end_time: z.string().describe("End time, ISO 8601 UTC"),
+				location: z.string().optional(),
+				body_html: z.string().optional().describe("Event description/body as HTML"),
+				attendees: z.array(attendeeInput).optional().describe("Invitees. Omit to create a personal (non-meeting) event."),
+				calendar_id: z.string().optional().describe("Target calendar ID from outlook_list_calendars. Omit to use the default calendar."),
+				is_online_meeting: z.boolean().optional().describe("If true, adds a Microsoft Teams link to the invite"),
+			},
+			async ({ subject, start_time, end_time, location, body_html, attendees, calendar_id, is_online_meeting }) => {
+				const missing = msMissingConfig();
+				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
+				const mailbox = encodeURIComponent(env.MS_SENDER_EMAIL);
+				const base = calendar_id
+					? `/users/${mailbox}/calendars/${encodeURIComponent(calendar_id)}`
+					: `/users/${mailbox}`;
+
+				const payload: Record<string, unknown> = {
+					subject,
+					start: toGraphDateTime(start_time),
+					end: toGraphDateTime(end_time),
+				};
+				if (location) payload.location = { displayName: location };
+				if (body_html) payload.body = { contentType: "HTML", content: body_html };
+				if (attendees && attendees.length > 0) {
+					payload.attendees = attendees.map((a) => ({
+						emailAddress: { address: a.email, ...(a.name ? { name: a.name } : {}) },
+						type: a.type,
+					}));
+				}
+				if (is_online_meeting) {
+					payload.isOnlineMeeting = true;
+					payload.onlineMeetingProvider = "teamsForBusiness";
+				}
+				const result = await graphRequest(`${base}/events`, { method: "POST", body: JSON.stringify(payload) });
+				return jsonResponse(ok({
+					event_created: true,
+					event: normalizeEvent(result),
+					invites_sent_to: (attendees || []).map((a) => a.email),
+				}));
+			}
+		);
+
+		this.server.tool(
+			"outlook_update_event",
+			"Update an existing Outlook calendar event. Microsoft Graph automatically emails attendees an update notification when the organizer changes a meeting. Use outlook_search_events first to find the event_id. The attendees list, if provided, fully replaces the existing list.",
+			{
+				event_id: z.string().min(1).describe("Event ID from outlook_search_events or outlook_create_event"),
+				calendar_id: z.string().optional().describe("Calendar the event lives in. Omit to use the default calendar."),
+				subject: z.string().optional(),
+				start_time: z.string().optional().describe("New start time, ISO 8601 UTC"),
+				end_time: z.string().optional().describe("New end time, ISO 8601 UTC"),
+				location: z.string().optional(),
+				body_html: z.string().optional(),
+				attendees: z.array(attendeeInput).optional().describe("Replaces the full attendee list. Omit to leave attendees unchanged."),
+			},
+			async ({ event_id, calendar_id, subject, start_time, end_time, location, body_html, attendees }) => {
+				const missing = msMissingConfig();
+				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
+				const mailbox = encodeURIComponent(env.MS_SENDER_EMAIL);
+				const base = calendar_id
+					? `/users/${mailbox}/calendars/${encodeURIComponent(calendar_id)}`
+					: `/users/${mailbox}`;
+
+				const payload: Record<string, unknown> = {};
+				if (subject !== undefined) payload.subject = subject;
+				if (start_time !== undefined) payload.start = toGraphDateTime(start_time);
+				if (end_time !== undefined) payload.end = toGraphDateTime(end_time);
+				if (location !== undefined) payload.location = { displayName: location };
+				if (body_html !== undefined) payload.body = { contentType: "HTML", content: body_html };
+				if (attendees !== undefined) {
+					payload.attendees = attendees.map((a) => ({
+						emailAddress: { address: a.email, ...(a.name ? { name: a.name } : {}) },
+						type: a.type,
+					}));
+				}
+				if (Object.keys(payload).length === 0) {
+					return jsonResponse(blocked("No fields to update were provided.", { event_id }));
+				}
+				const result = await graphRequest(`${base}/events/${encodeURIComponent(event_id)}`, {
+					method: "PATCH",
+					body: JSON.stringify(payload),
+				});
+				return jsonResponse(ok({ event_updated: true, event: normalizeEvent(result) }));
 			}
 		);
 	}

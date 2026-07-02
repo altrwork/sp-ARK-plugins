@@ -8,8 +8,10 @@ declare namespace Cloudflare {
 		// OAuth secrets (wrangler secret put)
 		MS_CLIENT_SECRET: string;
 		COOKIE_ENCRYPTION_KEY: string;
-		// Non-secret var (wrangler.jsonc vars)
+		// Non-secret vars (wrangler.jsonc vars)
 		MS_CLIENT_ID: string;
+		MS_TENANT_ID: string;
+		MS_SENDER_EMAIL: string;
 	}
 }
 
