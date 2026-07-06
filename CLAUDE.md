@@ -36,14 +36,16 @@ sp-ARK-plugins/
 │       └── draft-invites/
 ├── operations/                       # Plugin: operations workflows
 │   ├── .claude-plugin/plugin.json
+│   ├── CONNECTORS.md
 │   ├── mcp-servers/
-│   │   └── remote/                   # Cloudflare Worker (GitHub OAuth)
+│   │   └── remote/                   # Cloudflare Worker (Microsoft OAuth)
 │   └── skills/
 │       ├── send-member-agreement/
 │       └── activate-member-access/
 └── community-management/             # Plugin: community operations
     ├── .claude-plugin/plugin.json
     ├── .mcp.json                     # Microsoft 365 MCP server config
+    ├── CONNECTORS.md
     └── skills/
         ├── expense-reports/
         └── event-request/
@@ -56,25 +58,35 @@ Each skill is a folder containing a `SKILL.md`. Supporting files stay inside tha
 ### Operations Worker (`operations/mcp-servers/remote/`)
 
 **URL:** `https://sp-ark-operations-mcp.jarred-823.workers.dev/mcp`
-**Auth:** GitHub OAuth — only `JarredR092699` and `edwin727` get tools
+**Auth:** Microsoft OAuth (tenant-scoped, switched from GitHub OAuth 2026-06-23) — access gated by the `ALLOWED_EMAILS` allowlist in `src/index.ts`, not by client-side scopes. Non-allowlisted users can sign in but get zero tools. Current allowlist: `jarred@altrwork.com`, `robidouxj@sp-ark-labs.com`, `deeke@tbinnovates.com` (Edwin), `bernardc@sp-ark-labs.com`, `ryanc@sp-ark-labs.com`, `brownr@sp-ark-labs.com`, `kange@sp-ark-labs.com`.
 **Deploy:** `cd operations/mcp-servers/remote && npm run deploy`
 
-Tools: BossHub inquiry lookup, Verkada access user management, Nexudus member creation and room booking, Outlook draft creation (client credentials via Edwin's Microsoft account).
+Uses the same Azure app (client ID, tenant) as the CEO Tools worker below — identity-only login, separate from the client-credentials Graph token used for Outlook.
 
-Wrangler secrets: `COOKIE_ENCRYPTION_KEY`, `BOSSHUB_ACCESS_TOKEN`, `VERKADA_API_KEY`, `NEXUDUS_USERNAME`, `NEXUDUS_PASSWORD`, `MS_CLIENT_SECRET`
+**Known gotcha:** anyone who added this connector in Claude before the 2026-06-23 GitHub→Microsoft OAuth switch is holding a session tied to the old auth flow and will get 401s even though they're on the allowlist. Fix: remove and re-add the `sp-ark-operations-mcp` connector in Claude to force a fresh Microsoft login.
+
+**Known gotcha (Verkada 401s):** since Verkada's Nov 2024 API model, `VERKADA_API_KEY` permissions are scoped per product. Read/write on "Access Control" (covers `/access/v1/...` — access groups, access users lookup, pass invite, remote unlock) does **not** cover "Core" (covers `/core/v1/user`, used by `verkada_create_access_user`). A key missing the Core permission returns a 401 `"Failed to authenticate request"` on create while reads still succeed. Fix: in Verkada Command, add a Core (Read/Write) permission row to the key alongside Access Control — no redeploy needed, the same key just needs the broader scope. Also: `verkada_send_pass_invite` and `verkada_activate_remote_unlock` require `user_id` + `email` explicitly — Verkada rejects requests that only supply `external_id`.
+
+Tools:
+- BossHub: `bosshub_list_forms`, `bosshub_list_submissions`, `bosshub_get_submission`
+- Verkada: `verkada_find_access_user`, `verkada_create_access_user`, `verkada_list_access_groups`, `verkada_add_user_to_access_group`, `verkada_send_pass_invite`, `verkada_activate_remote_unlock`
+- Nexudus: `nexudus_find_person`, `nexudus_create_person`, `nexudus_assign_booking_access`, `nexudus_list_resources`, `nexudus_list_bookings`, `nexudus_create_booking`, `nexudus_cancel_booking`
+- Outlook (client credentials via `robidouxj@sp-ark-labs.com`): `outlook_create_draft`, `outlook_list_calendars`, `outlook_search_events`, `outlook_create_event`, `outlook_update_event`
+
+Wrangler secrets: `COOKIE_ENCRYPTION_KEY`, `BOSSHUB_ACCESS_TOKEN`, `VERKADA_API_KEY`, `NEXUDUS_ACCESS_TOKEN` (or `NEXUDUS_USERNAME` + `NEXUDUS_PASSWORD`), `MS_CLIENT_SECRET`
 
 ### CEO Tools Worker (`ceo-tools/mcp-servers/remote/`)
 
 **URL:** `https://sp-ark-ceo-tools.jarred-823.workers.dev/mcp`
-**Auth:** Microsoft OAuth (delegated) — Becca signs in with her Microsoft account
+**Auth:** Microsoft OAuth (tenant-scoped identity check, no allowlist) — Becca signs in with her Microsoft account. Login is identity-only; the actual Excel/Outlook calls run on a separate client-credentials Graph token for `brownr@sp-ark-labs.com`, not Becca's delegated token.
 **Deploy:** `cd ceo-tools/mcp-servers/remote && npm run deploy`
 
 Tools: SharePoint/Excel read-write (`search_sharepoint_files`, `list_excel_worksheets`, `get_excel_rows`, `append_excel_rows`, `update_excel_cell`) and Outlook read-write (`list_emails`, `search_emails`, `read_email`, `create_email_draft`, `send_email`, `reply_to_email`).
 
-Azure app: client ID `bcaefde6-b9ed-407e-9dbe-04de6127730e`, multi-tenant, redirect URI `https://sp-ark-ceo-tools.jarred-823.workers.dev/callback`
+Azure app: client ID `c5182f34-3a23-4975-9c94-36f8add94dd4`, tenant `739a4a9e-9e21-404a-9676-0200f2283cf6` — the same Azure app as the Operations Worker above (same client ID/secret, different redirect URI registered per worker: `https://sp-ark-ceo-tools.jarred-823.workers.dev/callback`).
 
 Wrangler secrets: `MS_CLIENT_SECRET`, `COOKIE_ENCRYPTION_KEY`
-Wrangler vars: `MS_CLIENT_ID`
+Wrangler vars: `MS_CLIENT_ID`, `MS_TENANT_ID`, `MS_SENDER_EMAIL` (`brownr@sp-ark-labs.com`)
 
 ## Plugins
 
@@ -127,7 +139,7 @@ New member onboarding across agreements, building access, member portal, and Sla
 
 **Skills:**
 - `send-member-agreement` — `/send-member-agreement [member name or email]`; reads a BossHub inquiry, confirms details with Edwin, collects pricing, sends the membership agreement via DocuSign.
-- `activate-member-access` — `/activate-member-access [member email]`; confirms signing, creates Verkada access user (All Access group), creates Nexudus member account, drafts Outlook welcome email.
+- `activate-member-access` — `/activate-member-access [member email]`; confirms signing, creates Verkada access user (All Access group, Pass app invite, remote unlock), creates Nexudus member account, drafts Outlook welcome email.
 
 **BossHub/LeadConnector:**
 - Location ID: `jqh6rxfWtvMIQCKxcDlc`
@@ -136,7 +148,7 @@ New member onboarding across agreements, building access, member portal, and Sla
 - API version header: `2023-02-21`
 
 **DocuSign:**
-- Template ID: `8772e4f2-e427-4f4d-828f-69cfa69fd779`
+- Template: looked up by exact name (`spARK new member template`) via `getTemplates`, not a hardcoded template ID — the skill stops and reports if no exact match is found.
 - Roles: `Founder` (routing 1) → `ARK` (routing 2, pre-configured as Rebecca Brown, CEO)
 
 **Verkada:**
@@ -157,7 +169,7 @@ New member onboarding across agreements, building access, member portal, and Sla
 
 ### `sp-ark-ceo-tools` (`ceo-tools/`)
 
-CEO tools for Becca — Excel/SharePoint write access and Outlook read-write via delegated Microsoft OAuth. Becca adds `https://sp-ark-ceo-tools.jarred-823.workers.dev/mcp` as a custom connector in Claude.ai and signs in with her Microsoft account once.
+CEO tools for Becca — Excel/SharePoint write access and Outlook read-write. Becca adds `https://sp-ark-ceo-tools.jarred-823.workers.dev/mcp` as a custom connector in Claude.ai and signs in with her Microsoft account once (identity-only login; the actual Graph calls run on a separate client-credentials token).
 
 **No skills yet** — tools are exposed directly through the MCP server.
 

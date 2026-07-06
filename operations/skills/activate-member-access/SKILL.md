@@ -9,7 +9,7 @@ argument-hint: "[member email]"
 You are helping sp-ARK Labs provision access for a new member whose membership agreement has been signed and returned. This skill is the second step of new member onboarding — the DocuSign agreement should already be completed before running this.
 
 This skill handles:
-- Verkada building access (create user, assign to All Access group)
+- Verkada building access (create user, assign to All Access group, send Pass app invite, enable remote unlock)
 - Nexudus member portal creation
 - Outlook draft email with the Slack workspace invite link
 
@@ -54,7 +54,7 @@ Ready to activate access for:
 Confirm: has the signed agreement been returned?
 
 Planned actions:
-- Add Verkada access user and assign to All Access group
+- Add Verkada access user, assign to All Access group, send Pass app invite, enable remote unlock
 - Add Nexudus member account
 - Draft Outlook email with Slack invite link
 
@@ -65,22 +65,17 @@ Wait for explicit confirmation before creating, adding, or inviting anything.
 
 ### Step 3 - Add Verkada access
 
-Use the Verkada connector tools:
+Use the Verkada connector tools, in order:
 
 1. Call `verkada_find_access_user` with `[email]`.
-2. If none exists, call `verkada_create_access_user` for `[first name] [last name]` and `[email]`.
+2. If none exists, call `verkada_create_access_user` for `[first name] [last name]` and `[email]`. Note the `user_id` from the response (or from `verkada_find_access_user` if the member already existed) — the remaining steps need it.
 3. Call `verkada_add_user_to_access_group` with the existing or created user and the configured access group.
+4. Call `verkada_send_pass_invite` with `user_id` and `email` so they get the "download Verkada Pass and set your password" email. This is required — the member needs the app to badge/unlock the door. Both `user_id` and `email` are required arguments — Verkada rejects the request if only `external_id` is supplied.
+5. Call `verkada_activate_remote_unlock` with the same `user_id` and `email` so they can unlock doors from the Pass app, not just badge in.
 
 Target access group: **All Access** (`1018efcf-5d11-4a3d-b01a-57bd8d3cd346`). If the connector or access group is unavailable, do not attempt a partial access update. Mark Verkada as blocked in the final summary.
 
-Known Edwin workflow in Verkada:
-
-- Add new user with first name, last name, and email.
-- Enable Verkada Pass.
-- Enable remote unlock.
-- Assign the user to the all-access group.
-
-If Verkada Pass or remote unlock cannot be set through the current MCP tools, create/assign the access user and report those remaining settings as manual follow-up.
+Bluetooth unlock has no public Verkada API endpoint as of this writing — that toggle still has to be set manually in Verkada Command (Access Users and Groups → user profile → Verkada Pass).
 
 ### Step 4 - Add Nexudus access
 
@@ -120,6 +115,8 @@ Company: [company name]
 Membership: [membership type]
 
 - Verkada: Added / Already existed / Blocked / Failed
+- Verkada Pass invite: Sent / Blocked / Failed
+- Verkada remote unlock: Enabled / Blocked / Failed
 - Nexudus: Added / Already existed / Blocked / Failed
 - Slack invite email: Drafted / Blocked / Failed
 

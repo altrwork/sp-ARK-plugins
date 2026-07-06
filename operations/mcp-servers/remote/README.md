@@ -25,7 +25,7 @@ Claude.ai / Cowork              Cloudflare Worker                    Upstream AP
 
 **BossHub:** `bosshub_list_forms`, `bosshub_list_submissions`, `bosshub_get_submission`
 
-**Verkada:** `verkada_find_access_user`, `verkada_create_access_user`, `verkada_list_access_groups`, `verkada_add_user_to_access_group`
+**Verkada:** `verkada_find_access_user`, `verkada_create_access_user`, `verkada_list_access_groups`, `verkada_add_user_to_access_group`, `verkada_send_pass_invite`, `verkada_activate_remote_unlock`
 
 **Nexudus:** `nexudus_find_person`, `nexudus_create_person`, `nexudus_assign_booking_access`, `nexudus_list_resources`, `nexudus_list_bookings`, `nexudus_create_booking`, `nexudus_cancel_booking`
 

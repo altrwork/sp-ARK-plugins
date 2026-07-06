@@ -273,9 +273,7 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			return this.vkSessionToken as string;
 		};
 
-		const verkadaRequest = async (path: string, options: RequestInit = {}) => {
-			if (!env.VERKADA_API_KEY) throw new Error("VERKADA_API_KEY is not configured.");
-			const token = await getVerkadaToken();
+		const vkDoFetch = async (path: string, token: string, options: RequestInit = {}) => {
 			const response = await fetch(`${vkBaseUrl()}${path}`, {
 				...options,
 				headers: {
@@ -290,8 +288,21 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			if (text) {
 				try { body = JSON.parse(text); } catch { body = { raw: text }; }
 			}
-			if (!response.ok) {
-				throw new Error(JSON.stringify({ status: response.status, statusText: response.statusText, body }));
+			return { status: response.status, ok: response.ok, statusText: response.statusText, body };
+		};
+
+		const verkadaRequest = async (path: string, options: RequestInit = {}) => {
+			if (!env.VERKADA_API_KEY) throw new Error("VERKADA_API_KEY is not configured.");
+			let token = await getVerkadaToken();
+			let { status, ok: isOk, statusText, body } = await vkDoFetch(path, token, options);
+			if (status === 401) {
+				this.vkSessionToken = null;
+				this.vkTokenExpiresAt = 0;
+				token = await getVerkadaToken();
+				({ status, ok: isOk, statusText, body } = await vkDoFetch(path, token, options));
+			}
+			if (!isOk) {
+				throw new Error(JSON.stringify({ status, statusText, body }));
 			}
 			return body;
 		};
@@ -356,6 +367,42 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 					{ method: "PUT", body: JSON.stringify(payload) }
 				);
 				return jsonResponse(ok({ access_assignment: result }));
+			}
+		);
+
+		this.server.tool(
+			"verkada_send_pass_invite",
+			"Email a user an invite to download the Verkada Pass app and set up their mobile credential. Call after verkada_create_access_user and verkada_add_user_to_access_group. Requires the user_id returned by verkada_create_access_user/verkada_find_access_user, plus their email — the Verkada endpoint rejects requests that only supply external_id.",
+			{
+				user_id: z.string().min(1).describe("Verkada user_id from verkada_create_access_user or verkada_find_access_user. Required."),
+				email: z.string().email().describe("User's email address. Required."),
+				external_id: z.string().optional().describe("Optional, in addition to user_id."),
+			},
+			async ({ user_id, email, external_id }) => {
+				if (!env.VERKADA_API_KEY) return jsonResponse(blocked("VERKADA_API_KEY is not configured."));
+				if (vkDryRun) return jsonResponse(blocked("VERKADA_DRY_RUN is enabled. Set VERKADA_DRY_RUN=false to send Pass invites.", { user_id, email, external_id }));
+				const params = new URLSearchParams({ user_id, email });
+				if (external_id) params.set("external_id", external_id);
+				const result = await verkadaRequest(`/access/v1/access_users/user/pass/invite?${params.toString()}`, { method: "POST" });
+				return jsonResponse(ok({ invite_sent: true, user_id, email, result }));
+			}
+		);
+
+		this.server.tool(
+			"verkada_activate_remote_unlock",
+			"Enable remote unlock (via the Pass app) for a Verkada access user, so they can unlock doors from their phone instead of only badging in. Call after verkada_add_user_to_access_group. Requires the user_id returned by verkada_create_access_user/verkada_find_access_user, plus their email — the Verkada endpoint rejects requests that only supply external_id.",
+			{
+				user_id: z.string().min(1).describe("Verkada user_id from verkada_create_access_user or verkada_find_access_user. Required."),
+				email: z.string().email().describe("User's email address. Required."),
+				external_id: z.string().optional().describe("Optional, in addition to user_id."),
+			},
+			async ({ user_id, email, external_id }) => {
+				if (!env.VERKADA_API_KEY) return jsonResponse(blocked("VERKADA_API_KEY is not configured."));
+				if (vkDryRun) return jsonResponse(blocked("VERKADA_DRY_RUN is enabled. Set VERKADA_DRY_RUN=false to activate remote unlock.", { user_id, email, external_id }));
+				const params = new URLSearchParams({ user_id, email });
+				if (external_id) params.set("external_id", external_id);
+				const result = await verkadaRequest(`/access/v1/access_users/user/remote_unlock/activate?${params.toString()}`, { method: "PUT" });
+				return jsonResponse(ok({ remote_unlock_activated: true, user_id, email, result }));
 			}
 		);
 
