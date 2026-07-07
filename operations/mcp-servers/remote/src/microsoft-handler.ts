@@ -54,6 +54,7 @@ function buildMicrosoftAuthUrl(request: Request, stateToken: string, clientId: s
 	url.searchParams.set("scope", MS_SCOPES);
 	url.searchParams.set("state", stateToken);
 	url.searchParams.set("response_mode", "query");
+	url.searchParams.set("prompt", "select_account");
 	return url.href;
 }
 
