@@ -311,7 +311,7 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 		this.server.tool(
 			"verkada_find_access_user",
 			"Find a Verkada access user by email address.",
-			{ email: z.string().email() },
+			{ email: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Must be a valid email address") },
 			async ({ email }) => {
 				if (!env.VERKADA_API_KEY) return jsonResponse(blocked("VERKADA_API_KEY is not configured.", { email }));
 				const result = await verkadaRequest(`/access/v1/access_users/user?email=${encodeURIComponent(email)}`);
@@ -325,7 +325,7 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			{
 				first_name: z.string().min(1),
 				last_name: z.string().min(1),
-				email: z.string().email(),
+				email: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Must be a valid email address"),
 				external_id: z.string().optional(),
 			},
 			async ({ first_name, last_name, email, external_id }) => {
@@ -373,51 +373,61 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 
 		this.server.tool(
 			"verkada_send_pass_invite",
-			"Email a user an invite to download the Verkada Pass app and set up their mobile credential. Call after verkada_create_access_user and verkada_add_user_to_access_group. Requires at least one of user_id, email, external_id, or employee_id.",
+			"Email a user an invite to download the Verkada Pass app and set up their mobile credential. Call after verkada_create_access_user and verkada_add_user_to_access_group. Requires exactly one of user_id, email, external_id, or employee_id — if more than one is provided, only user_id (then external_id, then email, then employee_id) is sent, since Verkada rejects requests with more than one identifier.",
 			{
 				user_id: z.string().optional().describe("Verkada user_id from verkada_create_access_user or verkada_find_access_user."),
-				email: z.string().email().optional().describe("User's email address."),
+				email: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Must be a valid email address").optional().describe("User's email address."),
 				external_id: z.string().optional().describe("Customer-managed unique identifier."),
 				employee_id: z.string().optional().describe("Organization-defined employee ID."),
 			},
 			async ({ user_id, email, external_id, employee_id }) => {
-				if (!user_id && !email && !external_id && !employee_id) {
-					return jsonResponse(blocked("At least one of user_id, email, external_id, or employee_id is required."));
+				const identifier: Record<string, string> = user_id
+					? { user_id }
+					: external_id
+					? { external_id }
+					: email
+					? { email }
+					: employee_id
+					? { employee_id }
+					: {};
+				if (Object.keys(identifier).length === 0) {
+					return jsonResponse(blocked("Exactly one of user_id, email, external_id, or employee_id is required."));
 				}
 				if (!env.VERKADA_API_KEY) return jsonResponse(blocked("VERKADA_API_KEY is not configured."));
-				if (vkDryRun) return jsonResponse(blocked("VERKADA_DRY_RUN is enabled. Set VERKADA_DRY_RUN=false to send Pass invites.", { user_id, email, external_id, employee_id }));
-				const params = new URLSearchParams();
-				if (user_id) params.set("user_id", user_id);
-				if (email) params.set("email", email);
-				if (external_id) params.set("external_id", external_id);
-				if (employee_id) params.set("employee_id", employee_id);
+				if (vkDryRun) return jsonResponse(blocked("VERKADA_DRY_RUN is enabled. Set VERKADA_DRY_RUN=false to send Pass invites.", identifier));
+				const params = new URLSearchParams(identifier);
 				const result = await verkadaRequest(`/access/v1/access_users/user/pass/invite?${params.toString()}`, { method: "POST" });
-				return jsonResponse(ok({ invite_sent: true, user_id, email, external_id, employee_id, result }));
+				return jsonResponse(ok({ invite_sent: true, ...identifier, result }));
 			}
 		);
 
 		this.server.tool(
 			"verkada_activate_remote_unlock",
-			"Enable remote unlock (via the Pass app) for a Verkada access user, so they can unlock doors from their phone instead of only badging in. Call after verkada_add_user_to_access_group. Requires at least one of user_id, email, external_id, or employee_id.",
+			"Enable remote unlock (via the Pass app) for a Verkada access user, so they can unlock doors from their phone instead of only badging in. Call after verkada_add_user_to_access_group. Requires exactly one of user_id, email, external_id, or employee_id — if more than one is provided, only user_id (then external_id, then email, then employee_id) is sent, since Verkada rejects requests with more than one identifier.",
 			{
 				user_id: z.string().optional().describe("Verkada user_id from verkada_create_access_user or verkada_find_access_user."),
-				email: z.string().email().optional().describe("User's email address."),
+				email: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Must be a valid email address").optional().describe("User's email address."),
 				external_id: z.string().optional().describe("Customer-managed unique identifier."),
 				employee_id: z.string().optional().describe("Organization-defined employee ID."),
 			},
 			async ({ user_id, email, external_id, employee_id }) => {
-				if (!user_id && !email && !external_id && !employee_id) {
-					return jsonResponse(blocked("At least one of user_id, email, external_id, or employee_id is required."));
+				const identifier: Record<string, string> = user_id
+					? { user_id }
+					: external_id
+					? { external_id }
+					: email
+					? { email }
+					: employee_id
+					? { employee_id }
+					: {};
+				if (Object.keys(identifier).length === 0) {
+					return jsonResponse(blocked("Exactly one of user_id, email, external_id, or employee_id is required."));
 				}
 				if (!env.VERKADA_API_KEY) return jsonResponse(blocked("VERKADA_API_KEY is not configured."));
-				if (vkDryRun) return jsonResponse(blocked("VERKADA_DRY_RUN is enabled. Set VERKADA_DRY_RUN=false to activate remote unlock.", { user_id, email, external_id, employee_id }));
-				const params = new URLSearchParams();
-				if (user_id) params.set("user_id", user_id);
-				if (email) params.set("email", email);
-				if (external_id) params.set("external_id", external_id);
-				if (employee_id) params.set("employee_id", employee_id);
+				if (vkDryRun) return jsonResponse(blocked("VERKADA_DRY_RUN is enabled. Set VERKADA_DRY_RUN=false to activate remote unlock.", identifier));
+				const params = new URLSearchParams(identifier);
 				const result = await verkadaRequest(`/access/v1/access_users/user/remote_unlock/activate?${params.toString()}`, { method: "PUT" });
-				return jsonResponse(ok({ remote_unlock_activated: true, user_id, email, external_id, employee_id, result }));
+				return jsonResponse(ok({ remote_unlock_activated: true, ...identifier, result }));
 			}
 		);
 
@@ -487,7 +497,7 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 		this.server.tool(
 			"nexudus_find_person",
 			"Find a Nexudus coworker/member by email address.",
-			{ email: z.string().email() },
+			{ email: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Must be a valid email address") },
 			async ({ email }) => {
 				const missing = nxMissingConfig();
 				if (missing.length) return jsonResponse(blocked("Nexudus API configuration is incomplete.", { missing, email }));
@@ -504,7 +514,7 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			{
 				first_name: z.string().min(1),
 				last_name: z.string().min(1),
-				email: z.string().email(),
+				email: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Must be a valid email address"),
 				company_name: z.string().optional(),
 				tariff_id: z.number().int().positive(),
 			},
@@ -722,7 +732,7 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 		};
 
 		const attendeeInput = z.object({
-			email: z.string().email(),
+			email: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Must be a valid email address"),
 			name: z.string().optional(),
 			type: z.enum(["required", "optional"]).default("required"),
 		});
@@ -731,11 +741,11 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			"outlook_create_draft",
 			"Create a draft email in Outlook for the configured sender (Edwin). Does not send — the user reviews and sends manually.",
 			{
-				to: z.string().email().describe("Recipient email address"),
+				to: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Must be a valid email address").describe("Recipient email address"),
 				to_name: z.string().optional().describe("Recipient display name"),
 				subject: z.string().min(1),
 				body_html: z.string().min(1).describe("Email body as HTML"),
-				cc: z.array(z.string().email()).optional().describe("CC recipients"),
+				cc: z.array(z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Must be a valid email address")).optional().describe("CC recipients"),
 			},
 			async ({ to, to_name, subject, body_html, cc }) => {
 				const missing = msMissingConfig();
