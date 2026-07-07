@@ -17,7 +17,7 @@ const ALLOWED_EMAILS = new Set<string>([
 	"ryanc@sp-ark-labs.com",
 	"brownr@sp-ark-labs.com", 
 	"kange@sp-ark-labs.com",
-	"TWilson@tbinnovates.com"
+	"twilson@tbinnovates.com"
 ]);
 
 // ─── Shared helpers ─────────────────────────────────────────────────────────────
