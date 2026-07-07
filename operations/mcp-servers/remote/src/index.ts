@@ -373,37 +373,51 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 
 		this.server.tool(
 			"verkada_send_pass_invite",
-			"Email a user an invite to download the Verkada Pass app and set up their mobile credential. Call after verkada_create_access_user and verkada_add_user_to_access_group. Requires the user_id returned by verkada_create_access_user/verkada_find_access_user, plus their email — the Verkada endpoint rejects requests that only supply external_id.",
+			"Email a user an invite to download the Verkada Pass app and set up their mobile credential. Call after verkada_create_access_user and verkada_add_user_to_access_group. Requires at least one of user_id, email, external_id, or employee_id.",
 			{
-				user_id: z.string().min(1).describe("Verkada user_id from verkada_create_access_user or verkada_find_access_user. Required."),
-				email: z.string().email().describe("User's email address. Required."),
-				external_id: z.string().optional().describe("Optional, in addition to user_id."),
+				user_id: z.string().optional().describe("Verkada user_id from verkada_create_access_user or verkada_find_access_user."),
+				email: z.string().email().optional().describe("User's email address."),
+				external_id: z.string().optional().describe("Customer-managed unique identifier."),
+				employee_id: z.string().optional().describe("Organization-defined employee ID."),
 			},
-			async ({ user_id, email, external_id }) => {
+			async ({ user_id, email, external_id, employee_id }) => {
+				if (!user_id && !email && !external_id && !employee_id) {
+					return jsonResponse(blocked("At least one of user_id, email, external_id, or employee_id is required."));
+				}
 				if (!env.VERKADA_API_KEY) return jsonResponse(blocked("VERKADA_API_KEY is not configured."));
-				if (vkDryRun) return jsonResponse(blocked("VERKADA_DRY_RUN is enabled. Set VERKADA_DRY_RUN=false to send Pass invites.", { user_id, email, external_id }));
-				const params = new URLSearchParams({ user_id, email });
+				if (vkDryRun) return jsonResponse(blocked("VERKADA_DRY_RUN is enabled. Set VERKADA_DRY_RUN=false to send Pass invites.", { user_id, email, external_id, employee_id }));
+				const params = new URLSearchParams();
+				if (user_id) params.set("user_id", user_id);
+				if (email) params.set("email", email);
 				if (external_id) params.set("external_id", external_id);
+				if (employee_id) params.set("employee_id", employee_id);
 				const result = await verkadaRequest(`/access/v1/access_users/user/pass/invite?${params.toString()}`, { method: "POST" });
-				return jsonResponse(ok({ invite_sent: true, user_id, email, result }));
+				return jsonResponse(ok({ invite_sent: true, user_id, email, external_id, employee_id, result }));
 			}
 		);
 
 		this.server.tool(
 			"verkada_activate_remote_unlock",
-			"Enable remote unlock (via the Pass app) for a Verkada access user, so they can unlock doors from their phone instead of only badging in. Call after verkada_add_user_to_access_group. Requires the user_id returned by verkada_create_access_user/verkada_find_access_user, plus their email — the Verkada endpoint rejects requests that only supply external_id.",
+			"Enable remote unlock (via the Pass app) for a Verkada access user, so they can unlock doors from their phone instead of only badging in. Call after verkada_add_user_to_access_group. Requires at least one of user_id, email, external_id, or employee_id.",
 			{
-				user_id: z.string().min(1).describe("Verkada user_id from verkada_create_access_user or verkada_find_access_user. Required."),
-				email: z.string().email().describe("User's email address. Required."),
-				external_id: z.string().optional().describe("Optional, in addition to user_id."),
+				user_id: z.string().optional().describe("Verkada user_id from verkada_create_access_user or verkada_find_access_user."),
+				email: z.string().email().optional().describe("User's email address."),
+				external_id: z.string().optional().describe("Customer-managed unique identifier."),
+				employee_id: z.string().optional().describe("Organization-defined employee ID."),
 			},
-			async ({ user_id, email, external_id }) => {
+			async ({ user_id, email, external_id, employee_id }) => {
+				if (!user_id && !email && !external_id && !employee_id) {
+					return jsonResponse(blocked("At least one of user_id, email, external_id, or employee_id is required."));
+				}
 				if (!env.VERKADA_API_KEY) return jsonResponse(blocked("VERKADA_API_KEY is not configured."));
-				if (vkDryRun) return jsonResponse(blocked("VERKADA_DRY_RUN is enabled. Set VERKADA_DRY_RUN=false to activate remote unlock.", { user_id, email, external_id }));
-				const params = new URLSearchParams({ user_id, email });
+				if (vkDryRun) return jsonResponse(blocked("VERKADA_DRY_RUN is enabled. Set VERKADA_DRY_RUN=false to activate remote unlock.", { user_id, email, external_id, employee_id }));
+				const params = new URLSearchParams();
+				if (user_id) params.set("user_id", user_id);
+				if (email) params.set("email", email);
 				if (external_id) params.set("external_id", external_id);
+				if (employee_id) params.set("employee_id", employee_id);
 				const result = await verkadaRequest(`/access/v1/access_users/user/remote_unlock/activate?${params.toString()}`, { method: "PUT" });
-				return jsonResponse(ok({ remote_unlock_activated: true, user_id, email, result }));
+				return jsonResponse(ok({ remote_unlock_activated: true, user_id, email, external_id, employee_id, result }));
 			}
 		);
 
