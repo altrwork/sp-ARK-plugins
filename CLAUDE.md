@@ -58,12 +58,16 @@ Each skill is a folder containing a `SKILL.md`. Supporting files stay inside tha
 ### Operations Worker (`operations/mcp-servers/remote/`)
 
 **URL:** `https://sp-ark-operations-mcp.jarred-823.workers.dev/mcp`
-**Auth:** Microsoft OAuth (tenant-scoped, switched from GitHub OAuth 2026-06-23) — access gated by the `ALLOWED_EMAILS` allowlist in `src/index.ts`, not by client-side scopes. Non-allowlisted users can sign in but get zero tools. Current allowlist: `jarred@altrwork.com`, `robidouxj@sp-ark-labs.com`, `deeke@tbinnovates.com` (Edwin), `bernardc@sp-ark-labs.com`, `ryanc@sp-ark-labs.com`, `brownr@sp-ark-labs.com`, `kange@sp-ark-labs.com`.
+**Auth:** Microsoft OAuth (tenant-scoped, switched from GitHub OAuth 2026-06-23) — access gated by the `ALLOWED_EMAILS` allowlist in `src/index.ts`, not by client-side scopes. Non-allowlisted users can sign in but get zero tools. Current allowlist: `jarred@altrwork.com`, `robidouxj@sp-ark-labs.com`, `deeke@tbinnovates.com` (Edwin), `bernardc@sp-ark-labs.com`, `ryanc@sp-ark-labs.com`, `brownr@sp-ark-labs.com`, `kange@sp-ark-labs.com`, `twilson@tbinnovates.com`.
 **Deploy:** `cd operations/mcp-servers/remote && npm run deploy`
 
-Uses the same Azure app (client ID, tenant) as the CEO Tools worker below — identity-only login, separate from the client-credentials Graph token used for Outlook.
+**Delegated Graph permissions (rearchitected 2026-07-09, per Tommy/MSP guidance):** Outlook tools call Microsoft Graph using the signed-in user's own delegated access/refresh token (`/me/...` paths), not a fixed-mailbox client-credentials app token. Whoever is currently connected sends as themselves — e.g. if Edwin is signed in, drafts/invites come from Edwin's own mailbox. `MS_SCOPES` in `microsoft-handler.ts` requests `Mail.Send Mail.ReadWrite Calendars.ReadWrite` in addition to the identity scopes; the access/refresh token pair is captured into `Props` at `/callback` and cached per-Durable-Object in `index.ts` (`getUserMsToken()`), refreshing via `grant_type=refresh_token` as needed. Refreshed tokens live only in that Durable Object's memory — `workers-oauth-provider` has no API to persist updated tokens back into the OAuth grant, so a DO eviction falls back to the original login-time refresh token (Azure AD's rotation grace window generally still honors it).
+
+This currently still runs on the **same shared Azure app registration as the CEO Tools worker** below (same client ID/secret, different redirect URI) — pending a decision to split off a dedicated app registration with delegated-only permissions, since CEO Tools still needs that app's Application permissions for its own client-credentials flow. See Part 1 of the rearchitecture plan for the recommended new-app-registration path once Entra admin access is available.
 
 **Known gotcha:** anyone who added this connector in Claude before the 2026-06-23 GitHub→Microsoft OAuth switch is holding a session tied to the old auth flow and will get 401s even though they're on the allowlist. Fix: remove and re-add the `sp-ark-operations-mcp` connector in Claude to force a fresh Microsoft login.
+
+**Known gotcha (delegated-scope upgrade):** anyone who signed in before the `Mail.Send`/`Mail.ReadWrite`/`Calendars.ReadWrite` delegated scopes were added is holding a token without those scopes and will get Graph 403s on Outlook tools even though they're on the allowlist. Fix: remove and re-add the `sp-ark-operations-mcp` connector to force a fresh Microsoft login with the new scopes.
 
 **Known gotcha (Verkada 401s):** since Verkada's Nov 2024 API model, `VERKADA_API_KEY` permissions are scoped per product. Read/write on "Access Control" (covers `/access/v1/...` — access groups, access users lookup, pass invite, remote unlock) does **not** cover "Core" (covers `/core/v1/user`, used by `verkada_create_access_user`). A key missing the Core permission returns a 401 `"Failed to authenticate request"` on create while reads still succeed. Fix: in Verkada Command, add a Core (Read/Write) permission row to the key alongside Access Control — no redeploy needed, the same key just needs the broader scope. Also: `verkada_send_pass_invite` and `verkada_activate_remote_unlock` require `user_id` + `email` explicitly — Verkada rejects requests that only supply `external_id`.
 
@@ -71,7 +75,7 @@ Tools:
 - BossHub: `bosshub_list_forms`, `bosshub_list_submissions`, `bosshub_get_submission`
 - Verkada: `verkada_find_access_user`, `verkada_create_access_user`, `verkada_list_access_groups`, `verkada_add_user_to_access_group`, `verkada_send_pass_invite`, `verkada_activate_remote_unlock`
 - Nexudus: `nexudus_find_person`, `nexudus_create_person`, `nexudus_assign_booking_access`, `nexudus_list_resources`, `nexudus_list_bookings`, `nexudus_create_booking`, `nexudus_cancel_booking`
-- Outlook (client credentials via `robidouxj@sp-ark-labs.com`): `outlook_create_draft`, `outlook_list_calendars`, `outlook_search_events`, `outlook_create_event`, `outlook_update_event`
+- Outlook (delegated, as the signed-in user): `outlook_create_draft`, `outlook_list_calendars`, `outlook_search_events`, `outlook_create_event`, `outlook_update_event`
 
 Wrangler secrets: `COOKIE_ENCRYPTION_KEY`, `BOSSHUB_ACCESS_TOKEN`, `VERKADA_API_KEY`, `NEXUDUS_ACCESS_TOKEN` (or `NEXUDUS_USERNAME` + `NEXUDUS_PASSWORD`), `MS_CLIENT_SECRET`
 

@@ -13,15 +13,17 @@ import {
 } from "./workers-oauth-utils";
 import type { Props } from "./utils";
 
-// Identity only — scopes are minimal because we only need to know who the user
-// is (their email). BossHub, Verkada, and Nexudus use their own API credentials.
+// Identity + delegated Graph access. Outlook tools call Graph as whichever user is
+// signed in (via their own access/refresh token), not via a fixed-mailbox app-only
+// credential — Mail.Send/Mail.ReadWrite/Calendars.ReadWrite grant that. BossHub,
+// Verkada, and Nexudus use their own separate API credentials, unaffected by this.
 //
 // Security note: we use the tenant-specific endpoint (not /common/) so that only
 // accounts from our Azure tenant can authenticate. This prevents nOAuth spoofing,
 // where an attacker in another tenant creates an account whose `mail` field matches
 // a whitelisted email address. The MS_TENANT_ID env var controls which tenant is
 // trusted; identity is read from the signed ID token, not from the /me endpoint.
-const MS_SCOPES = "offline_access openid profile email";
+const MS_SCOPES = "offline_access openid profile email Mail.Send Mail.ReadWrite Calendars.ReadWrite";
 
 function msAuthUrl(tenantId: string) {
 	return `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize`;

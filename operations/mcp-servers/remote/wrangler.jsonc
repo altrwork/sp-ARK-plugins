@@ -35,8 +35,10 @@
   // Non-secret configuration. Secrets are set with `wrangler secret put`:
   //   COOKIE_ENCRYPTION_KEY, BOSSHUB_ACCESS_TOKEN, VERKADA_API_KEY,
   //   NEXUDUS_ACCESS_TOKEN, MS_CLIENT_SECRET
-  // MS_CLIENT_ID is used for both Microsoft OAuth (user identity) and
-  // client credentials (Outlook draft tool). Same Azure app, same secret.
+  // MS_CLIENT_ID/MS_CLIENT_SECRET are for a dedicated Entra app registration used
+  // for delegated Microsoft OAuth (sign-in + refresh-token Graph calls as the
+  // signed-in user). Update these once the new app registration exists — see
+  // root CLAUDE.md for the delegated-permissions rearchitecture.
   "vars": {
     "BOSSHUB_API_BASE_URL": "https://services.leadconnectorhq.com",
     "BOSSHUB_LOCATION_ID": "jqh6rxfWtvMIQCKxcDlc",
@@ -48,9 +50,8 @@
     "NEXUDUS_API_BASE_URL": "https://spaces.nexudus.com",
     "NEXUDUS_BUSINESS_ID": "1420978999",
     "NEXUDUS_DRY_RUN": "false",
-    // Microsoft Graph — Entra app for Outlook draft creation
+    // Microsoft Graph — Entra app for delegated Outlook access
     "MS_TENANT_ID": "739a4a9e-9e21-404a-9676-0200f2283cf6",
-    "MS_CLIENT_ID": "c5182f34-3a23-4975-9c94-36f8add94dd4",
-    "MS_SENDER_EMAIL": "robidouxj@sp-ark-labs.com"
+    "MS_CLIENT_ID": "0b84d0be-4b61-46e0-8f44-56e6986a65a2"
   }
 }

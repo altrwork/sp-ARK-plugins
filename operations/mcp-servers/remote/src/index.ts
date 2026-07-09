@@ -143,8 +143,10 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 	private vkTokenExpiresAt = 0;
 	// Nexudus token cache
 	private nxCachedToken = "";
-	// Microsoft Graph token cache
+	// Microsoft Graph token cache — seeded from this.props (the signed-in user's own
+	// delegated token) on first use, refreshed in place as it expires.
 	private msAccessToken: string | null = null;
+	private msRefreshToken: string | null = null;
 	private msTokenExpiresAt = 0;
 
 	async init() {
@@ -683,17 +685,30 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			if (!env.MS_TENANT_ID) missing.push("MS_TENANT_ID");
 			if (!env.MS_CLIENT_ID) missing.push("MS_CLIENT_ID");
 			if (!env.MS_CLIENT_SECRET) missing.push("MS_CLIENT_SECRET");
-			if (!env.MS_SENDER_EMAIL) missing.push("MS_SENDER_EMAIL");
 			return missing;
 		};
 
-		const getMsToken = async (): Promise<string> => {
+		// Delegated token for the signed-in user. Seeded from this.props (set at
+		// /callback login time) and refreshed in place as it expires. Refreshed tokens
+		// live only in this Durable Object's memory — workers-oauth-provider has no API
+		// to write them back into the persisted OAuth grant. If the DO is evicted and
+		// restarts, init() re-seeds from the original login-time refresh token, which
+		// Azure AD's rotation grace window will generally still honor.
+		const getUserMsToken = async (): Promise<string> => {
+			if (!this.msAccessToken) {
+				this.msAccessToken = this.props!.accessToken;
+				this.msRefreshToken = this.props!.refreshToken;
+				this.msTokenExpiresAt = this.props!.tokenExpiresAt;
+			}
 			if (this.msAccessToken && Date.now() < this.msTokenExpiresAt) return this.msAccessToken;
+			if (!this.msRefreshToken) throw new Error("No Microsoft refresh token available — reconnect the connector.");
+
 			const params = new URLSearchParams({
-				grant_type: "client_credentials",
+				grant_type: "refresh_token",
 				client_id: env.MS_CLIENT_ID,
 				client_secret: env.MS_CLIENT_SECRET,
-				scope: "https://graph.microsoft.com/.default",
+				refresh_token: this.msRefreshToken,
+				scope: "offline_access openid profile email Mail.Send Mail.ReadWrite Calendars.ReadWrite",
 			});
 			const response = await fetch(
 				`https://login.microsoftonline.com/${env.MS_TENANT_ID}/oauth2/v2.0/token`,
@@ -701,16 +716,17 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			);
 			const body: any = await response.json().catch(() => ({}));
 			if (!response.ok || !body.access_token) {
-				throw new Error(JSON.stringify({ status: response.status, body, message: "Failed to obtain Microsoft Graph token" }));
+				throw new Error(JSON.stringify({ status: response.status, body, message: "Failed to refresh Microsoft Graph token" }));
 			}
 			this.msAccessToken = body.access_token;
+			if (body.refresh_token) this.msRefreshToken = body.refresh_token;
 			// expires_in is in seconds; refresh 60s early
 			this.msTokenExpiresAt = Date.now() + (body.expires_in - 60) * 1000;
 			return this.msAccessToken as string;
 		};
 
 		const graphRequest = async (path: string, options: RequestInit = {}) => {
-			const token = await getMsToken();
+			const token = await getUserMsToken();
 			const response = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
 				...options,
 				headers: {
@@ -739,7 +755,7 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 
 		this.server.tool(
 			"outlook_create_draft",
-			"Create a draft email in Outlook for the configured sender (Edwin). Does not send — the user reviews and sends manually.",
+			"Create a draft email in Outlook as the signed-in user. Does not send — the user reviews and sends manually.",
 			{
 				to: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Must be a valid email address").describe("Recipient email address"),
 				to_name: z.string().optional().describe("Recipient display name"),
@@ -750,7 +766,6 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			async ({ to, to_name, subject, body_html, cc }) => {
 				const missing = msMissingConfig();
 				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
-				const token = await getMsToken();
 				const message: Record<string, unknown> = {
 					subject,
 					body: { contentType: "HTML", content: body_html },
@@ -759,46 +774,66 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 				if (cc && cc.length > 0) {
 					message.ccRecipients = cc.map((addr) => ({ emailAddress: { address: addr } }));
 				}
-				const response = await fetch(
-					`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(env.MS_SENDER_EMAIL)}/messages`,
-					{
-						method: "POST",
-						headers: {
-							accept: "application/json",
-							"content-type": "application/json",
-							authorization: `Bearer ${token}`,
-						},
-						body: JSON.stringify(message),
-					}
-				);
-				const text = await response.text();
-				let body: any = {};
-				if (text) {
-					try { body = JSON.parse(text); } catch { body = { raw: text }; }
-				}
-				if (!response.ok) {
-					throw new Error(JSON.stringify({ status: response.status, statusText: response.statusText, body }));
-				}
+				const body = await graphRequest(`/me/messages`, { method: "POST", body: JSON.stringify(message) });
 				return jsonResponse(ok({
 					draft_created: true,
 					message_id: body.id,
 					subject: body.subject,
 					web_link: body.webLink || null,
-					from: env.MS_SENDER_EMAIL,
+					from: this.props!.email,
 					to,
 				}));
 			}
 		);
 
 		this.server.tool(
+			"outlook_send_mail",
+			"Compose and immediately send an email as the signed-in user. Unlike outlook_create_draft, this sends right away with no review step — use outlook_create_draft instead when the user should review before sending.",
+			{
+				to: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Must be a valid email address").describe("Recipient email address"),
+				to_name: z.string().optional().describe("Recipient display name"),
+				subject: z.string().min(1),
+				body_html: z.string().min(1).describe("Email body as HTML"),
+				cc: z.array(z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Must be a valid email address")).optional().describe("CC recipients"),
+			},
+			async ({ to, to_name, subject, body_html, cc }) => {
+				const missing = msMissingConfig();
+				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
+				const message: Record<string, unknown> = {
+					subject,
+					body: { contentType: "HTML", content: body_html },
+					toRecipients: [{ emailAddress: { address: to, ...(to_name ? { name: to_name } : {}) } }],
+				};
+				if (cc && cc.length > 0) {
+					message.ccRecipients = cc.map((addr) => ({ emailAddress: { address: addr } }));
+				}
+				await graphRequest(`/me/sendMail`, { method: "POST", body: JSON.stringify({ message, saveToSentItems: true }) });
+				return jsonResponse(ok({ mail_sent: true, from: this.props!.email, to, subject }));
+			}
+		);
+
+		this.server.tool(
+			"outlook_send_draft",
+			"Send an existing Outlook draft as the signed-in user. Use outlook_create_draft or outlook_search_events first to get the message_id, then call this once the draft has been reviewed.",
+			{
+				message_id: z.string().min(1).describe("Draft message ID from outlook_create_draft"),
+			},
+			async ({ message_id }) => {
+				const missing = msMissingConfig();
+				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
+				await graphRequest(`/me/messages/${encodeURIComponent(message_id)}/send`, { method: "POST" });
+				return jsonResponse(ok({ draft_sent: true, message_id, from: this.props!.email }));
+			}
+		);
+
+		this.server.tool(
 			"outlook_list_calendars",
-			"List calendars available in the configured Outlook mailbox. Use to find a calendar_id for outlook_search_events, outlook_create_event, or outlook_update_event when targeting a non-default calendar.",
+			"List calendars available in the signed-in user's Outlook mailbox. Use to find a calendar_id for outlook_search_events, outlook_create_event, or outlook_update_event when targeting a non-default calendar.",
 			{},
 			async () => {
 				const missing = msMissingConfig();
 				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
-				const mailbox = encodeURIComponent(env.MS_SENDER_EMAIL);
-				const result = await graphRequest(`/users/${mailbox}/calendars`);
+				const result = await graphRequest(`/me/calendars`);
 				const calendars = (result.value || []).map((c: any) => ({
 					id: c.id,
 					name: c.name,
@@ -812,7 +847,7 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 
 		this.server.tool(
 			"outlook_search_events",
-			"Search or list events on the configured Outlook mailbox. Provide start_date/end_date to list a date range, a text query to search subject/body, or both. Returns event IDs needed for outlook_update_event.",
+			"Search or list events on the signed-in user's Outlook mailbox. Provide start_date/end_date to list a date range, a text query to search subject/body, or both. Returns event IDs needed for outlook_update_event.",
 			{
 				query: z.string().optional().describe("Free-text search across subject and body"),
 				start_date: z.string().optional().describe("Range start, ISO 8601 UTC (e.g. 2024-06-25T00:00:00Z). Defaults to now."),
@@ -823,10 +858,9 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			async ({ query, start_date, end_date, calendar_id, limit }) => {
 				const missing = msMissingConfig();
 				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
-				const mailbox = encodeURIComponent(env.MS_SENDER_EMAIL);
 				const base = calendar_id
-					? `/users/${mailbox}/calendars/${encodeURIComponent(calendar_id)}`
-					: `/users/${mailbox}`;
+					? `/me/calendars/${encodeURIComponent(calendar_id)}`
+					: `/me`;
 
 				let result: any;
 				if (query) {
@@ -858,7 +892,7 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 
 		this.server.tool(
 			"outlook_create_event",
-			"Create a calendar event/meeting on the configured Outlook mailbox. If attendees are provided, Microsoft Graph automatically emails them a meeting invitation. Use ISO 8601 UTC for start_time/end_time (e.g. 2024-06-25T14:00:00Z).",
+			"Create a calendar event/meeting on the signed-in user's Outlook mailbox. If attendees are provided, Microsoft Graph automatically emails them a meeting invitation. Use ISO 8601 UTC for start_time/end_time (e.g. 2024-06-25T14:00:00Z).",
 			{
 				subject: z.string().min(1),
 				start_time: z.string().describe("Start time, ISO 8601 UTC"),
@@ -872,10 +906,9 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			async ({ subject, start_time, end_time, location, body_html, attendees, calendar_id, is_online_meeting }) => {
 				const missing = msMissingConfig();
 				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
-				const mailbox = encodeURIComponent(env.MS_SENDER_EMAIL);
 				const base = calendar_id
-					? `/users/${mailbox}/calendars/${encodeURIComponent(calendar_id)}`
-					: `/users/${mailbox}`;
+					? `/me/calendars/${encodeURIComponent(calendar_id)}`
+					: `/me`;
 
 				const payload: Record<string, unknown> = {
 					subject,
@@ -919,10 +952,9 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			async ({ event_id, calendar_id, subject, start_time, end_time, location, body_html, attendees }) => {
 				const missing = msMissingConfig();
 				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
-				const mailbox = encodeURIComponent(env.MS_SENDER_EMAIL);
 				const base = calendar_id
-					? `/users/${mailbox}/calendars/${encodeURIComponent(calendar_id)}`
-					: `/users/${mailbox}`;
+					? `/me/calendars/${encodeURIComponent(calendar_id)}`
+					: `/me`;
 
 				const payload: Record<string, unknown> = {};
 				if (subject !== undefined) payload.subject = subject;
@@ -950,8 +982,9 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 }
 
 // ─── OAuth-wrapped Worker entry ──────────────────────────────────────────────────
-// GitHub OAuth gates the /mcp endpoint. The authenticated user's GitHub profile is
-// passed to OperationsMCP as this.props; ALLOWED_USERNAMES decides who gets tools.
+// Microsoft OAuth (delegated) gates the /mcp endpoint. The signed-in user's profile
+// and Graph tokens are passed to OperationsMCP as this.props; ALLOWED_EMAILS decides
+// who gets tools, and Outlook tools call Graph using that user's own token.
 
 export default new OAuthProvider({
 	apiHandler: OperationsMCP.serve("/mcp") as any,
