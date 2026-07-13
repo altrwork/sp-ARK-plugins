@@ -253,6 +253,17 @@
     }
     .blocker-box strong { font-weight: 700; }
 
+    .success-box {
+      background: #f0fdf5;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-top: 10px;
+      font-size: 12px;
+      color: #065f46;
+    }
+    .success-box strong { font-weight: 700; }
+
     /* ── CEO tools detail ── */
     .tools-box {
       background: #f0f7ff;
@@ -295,7 +306,7 @@
 <header>
   <div class="eyebrow">sp-ARK Labs</div>
   <h1>AI Automation Roadmap</h1>
-  <p>Claude Code plugins, skills, and team task tracker — June 2026</p>
+  <p>Claude Code plugins, skills, and team task tracker — July 2026</p>
 </header>
 
 <main>
@@ -366,15 +377,15 @@
 
         <div class="task">
           <div class="task-top">
-            <span class="badge badge-blocked">Blocked</span>
-            <div class="task-title">Get access to DocuSign</div>
+            <span class="badge badge-live">Success</span>
+            <div class="task-title">DocuSign</div>
           </div>
           <div class="task-desc">
-            The full member onboarding workflow is built and deployed. Edwin needs a DocuSign account connected to Claude to run <code>/send-member-agreement</code>. Once connected, the entire intake-to-agreement flow is automated.
+            DocuSign is connected and the full member onboarding workflow is live end-to-end. Edwin can run <code>/send-member-agreement</code> to send agreements and <code>/activate-member-access</code> once they're signed.
           </div>
 
           <div class="flow-block">
-            <div class="flow-label">Member onboarding flow (waiting on DocuSign)</div>
+            <div class="flow-label">Member onboarding flow (live)</div>
             <div class="flow-steps">
               <div class="flow-step">
                 <div class="step-num">1</div>
@@ -398,8 +409,8 @@
             </div>
           </div>
 
-          <div class="blocker-box">
-            <strong>Action needed:</strong> Jarred adds the DocuSign connector in Claude. Once connected, both onboarding skills are fully operational with no other setup required.
+          <div class="success-box">
+            <strong>Resolved:</strong> DocuSign connector added and template wiring confirmed last week. Both onboarding skills are fully operational with no other setup required.
           </div>
         </div>
 
@@ -433,6 +444,16 @@
               <li>List, search, and read Outlook emails</li>
               <li>Create drafts and send email directly from Claude</li>
             </ul>
+          </div>
+        </div>
+
+        <div class="task">
+          <div class="task-top">
+            <span class="badge badge-pending">In progress</span>
+            <div class="task-title">Better answer on Tommy's scheduled tasks</div>
+          </div>
+          <div class="task-desc">
+            Working on a clearer answer for Tommy on how his scheduled/automated tasks should run — following the delegated Graph permissions rearchitecture (per Tommy/MSP guidance).
           </div>
         </div>
 
@@ -494,6 +515,16 @@
 
         <div class="task">
           <div class="task-top">
+            <span class="badge badge-pending">In progress</span>
+            <div class="task-title">RSVP link for email invites</div>
+          </div>
+          <div class="task-desc">
+            Building an RSVP link Caitlin can include in <code>/draft-invites</code> emails, feeding into the planned <code>/sync-responses</code> skill that will monitor replies and update the distribution list Sheet automatically.
+          </div>
+        </div>
+
+        <div class="task">
+          <div class="task-top">
             <span class="badge badge-pending">In review</span>
             <div class="task-title">Revisit Canva automation</div>
           </div>
@@ -510,7 +541,7 @@
 </main>
 
 <footer>
-  sp-ARK Labs · AI Automation · Built with Claude Code · June 2026
+  sp-ARK Labs · AI Automation · Built with Claude Code · July 2026
 </footer>
 
 </body>

@@ -44,13 +44,44 @@ function toGraphDateTime(iso: string): { dateTime: string; timeZone: string } {
 	return { dateTime: iso.replace(/Z$/, ""), timeZone: "UTC" };
 }
 
+// Public *.workers.dev origin for this worker (see root CLAUDE.md). Used to build
+// shareable calendar links — /add-to-calendar and /ics are served by
+// microsoft-handler.ts and need no auth since they only echo back event fields the
+// caller already supplied.
+const WORKER_ORIGIN = "https://sp-ark-operations-mcp.jarred-823.workers.dev";
+
+// Graph's calendar responses give dateTime + an IANA/Windows timeZone name. We send
+// `Prefer: outlook.timezone="UTC"` on every Graph call (see graphRequest), so in
+// practice timeZone is always "UTC" here — this just guards the edge case.
+function toIcsUtcStamp(dateTime: string, timeZone: string | undefined): string | null {
+	if (!dateTime) return null;
+	const iso = /Z$/.test(dateTime) || (timeZone || "").toUpperCase() === "UTC" ? `${dateTime.replace(/Z$/, "")}Z` : dateTime;
+	const d = new Date(iso);
+	if (Number.isNaN(d.getTime())) return null;
+	return d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+}
+
+// Builds a link to this worker's /add-to-calendar landing page — a normal webpage
+// with Google Calendar / Outlook / .ics buttons, so someone clicking it in Slack
+// picks their own calendar app instead of a file silently downloading. Graph has no
+// native per-event .ics export, so we generate everything from fields we already have.
+function buildAddToCalendarUrl(e: { id: string; subject: string; start: any; end: any; location: string | null }): string | null {
+	const start = toIcsUtcStamp(e.start?.dateTime, e.start?.timeZone);
+	const end = toIcsUtcStamp(e.end?.dateTime, e.end?.timeZone);
+	if (!start || !end) return null;
+	const params = new URLSearchParams({ uid: e.id, subject: e.subject || "Event", start, end });
+	if (e.location) params.set("location", e.location);
+	return `${WORKER_ORIGIN}/add-to-calendar?${params.toString()}`;
+}
+
 function normalizeEvent(e: any) {
-	return {
+	const location = e.location?.displayName || null;
+	const event = {
 		id: e.id,
 		subject: e.subject,
 		start: e.start,
 		end: e.end,
-		location: e.location?.displayName || null,
+		location,
 		organizer: e.organizer?.emailAddress?.address || null,
 		attendees: (e.attendees || []).map((a: any) => ({
 			email: a.emailAddress?.address,
@@ -60,7 +91,10 @@ function normalizeEvent(e: any) {
 		})),
 		is_cancelled: e.isCancelled ?? false,
 		web_link: e.webLink || null,
+		add_to_calendar_url: null as string | null,
 	};
+	event.add_to_calendar_url = buildAddToCalendarUrl({ id: event.id, subject: event.subject, start: event.start, end: event.end, location });
+	return event;
 }
 
 // ─── BossHub field mapping ───────────────────────────────────────────────────────
@@ -733,6 +767,9 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 					accept: "application/json",
 					"content-type": "application/json",
 					authorization: `Bearer ${token}`,
+					// Ensures event start/end dateTimes come back in UTC regardless of the
+					// mailbox's configured timezone — buildIcsUrl() relies on this.
+					prefer: 'outlook.timezone="UTC"',
 					...(options.headers || {}),
 				},
 			});
