@@ -79,6 +79,7 @@ function normalizeEvent(e: any) {
 	const event = {
 		id: e.id,
 		subject: e.subject,
+		description: e.bodyPreview || null,
 		start: e.start,
 		end: e.end,
 		location,

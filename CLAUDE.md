@@ -33,7 +33,9 @@ sp-ARK-plugins/
 │   ├── README.md
 │   └── skills/
 │       ├── inbox-scraper/
-│       └── draft-invites/
+│       ├── draft-invites/
+│       ├── match-interns/
+│       └── slack-happening-this-week/
 ├── operations/                       # Plugin: operations workflows
 │   ├── .claude-plugin/plugin.json
 │   ├── CONNECTORS.md
@@ -73,7 +75,7 @@ This currently still runs on the **same shared Azure app registration as the CEO
 
 **Outlook events → Slack "add to calendar" links (added 2026-07-13):** Microsoft Graph has no endpoint that exports a single event as `.ics`, and no way to make Outlook natively subscribe to an external `.ics` URL either — so this is built entirely on our own worker. `normalizeEvent()` in `src/index.ts` builds an `add_to_calendar_url` field (via `buildAddToCalendarUrl()`) on every event returned by `outlook_create_event`, `outlook_search_events`, and `outlook_update_event`, pointing at a public, unauthenticated `GET /add-to-calendar` route added to `src/microsoft-handler.ts`. That route takes `subject`/`start`/`end`/`location`/`uid` as query params and renders an HTML landing page (`content-type: text/html`, not a file) with buttons for Google Calendar, Outlook, and a `.ics` download for Apple Calendar/other apps — a raw link straight to `/ics` was tried first, but that made browsers silently download a file instead of letting the recipient choose a calendar app, which doesn't work for a Slack channel with mixed calendar providers. The plain `GET /ics` route (same query params, `Content-Disposition: attachment`) still exists and is what the landing page's "Apple Calendar / Download .ics" button links to. No Graph call happens on either route, no storage — both just render whatever the query string says, so start/end are strictly regex-validated and subject/location are HTML-escaped before interpolation (public, unauthenticated endpoint). `graphRequest()` sends `Prefer: outlook.timezone="UTC"` on every call so event start/end always come back in UTC (required for correct `DTSTART`/`DTEND`/Google `dates=`/Outlook `startdt=`).
 
-Member events live on a separate **Events** calendar (`outlook_list_calendars` → `name: "Events"`, `owner: events@sp-ark-labs.com`, editable by the signed-in user). For the Monday member update: run `outlook_search_events` with that calendar's ID for the week, grab each event's `add_to_calendar_url`, and drop those links into the Slack message. Deliberately **not** doing this by writing the link into each event's own description — `outlook_update_event` on an event where `events@sp-ark-labs.com` is organizer would make Graph email an "event updated" notification to every attendee (including external members), just to inject a link. Revisit only if there's a way to do it without that side effect.
+Member events live on a separate **Events** calendar (`outlook_list_calendars` → `name: "Events"`, `owner: events@sp-ark-labs.com`, editable by the signed-in user). That calendar also carries internal-only meetings (organized by `events@sp-ark-labs.com` but attended only by staff) — the `sp-ark-marketing` plugin's `slack-happening-this-week` skill (`marketing/skills/slack-happening-this-week/`) handles the actual Monday member update: it pulls the week's events, keeps only ones whose attendees include `allmembers@sp-ark-labs.com`/`airsupply@sp-ark-labs.com`, converts times to Eastern, and drafts the Slack message with each event's `add_to_calendar_url`. Deliberately **not** implemented by writing the link into each event's own description — `outlook_update_event` on an event where `events@sp-ark-labs.com` is organizer would make Graph email an "event updated" notification to every attendee (including external members), just to inject a link. Revisit only if there's a way to do it without that side effect.
 
 **Known gotcha (multiple Outlook-flavored connectors):** Claude Desktop may have both the `spARK Connector` (this worker — has `add_to_calendar_url`) and a generic `Microsoft 365` connector loaded at once, and their calendar tools look interchangeable (`outlook_search_events` vs `outlook_calendar_search`). Only spARK Connector's tools return `add_to_calendar_url`; if Claude picks the Microsoft 365 tool instead, it won't find one and may incorrectly conclude ICS export isn't possible. Tell it explicitly to use the spARK Connector tools, or drive this through a skill that hardcodes the tool name.
 
@@ -108,6 +110,7 @@ Event marketing automation.
 - `inbox-scraper` — `/scrape-inbox <sheet_url> [days=30]`; scans Gmail for recent contacts, deduplicates against a distribution list Sheet, appends new rows.
 - `draft-invites` — `/draft-invites "<event details>"`; reads the distribution list Sheet, finds uninvited contacts, saves personalized Gmail drafts, updates the `Events Invited` column.
 - `match-interns` — `/match-interns`; pulls intern applications and member intern requests from BossHub, matches interns to member companies by skills/industry/availability, optionally drafts intro emails.
+- `slack-happening-this-week` — `/slack-happening-this-week [#channel]`; pulls this week's events off the shared Events calendar, converts times to Eastern, and drafts the Monday-morning member Slack message with an RSVP/add-to-calendar link under each event. Read-only against the calendar — see `operations/mcp-servers/remote/`'s CLAUDE.md notes on `add_to_calendar_url` for why it doesn't write back to events. Not to be confused with the unrelated `sp-ark-happening-this-week` global skill, which generates a Canva slide.
 
 **Connector placeholders:**
 
@@ -115,6 +118,9 @@ Event marketing automation.
 |---|---|---|
 | `~~email` | Gmail | `https://gmailmcp.googleapis.com/mcp/v1` |
 | `~~spreadsheet` | Google Drive / Sheets | `https://drivemcp.googleapis.com/mcp/v1` |
+| `~~bosshub` | sp-ARK Operations MCP | `https://sp-ark-operations-mcp.jarred-823.workers.dev/mcp` |
+| `~~calendar` | sp-ARK Operations MCP (Outlook calendar tools) | `https://sp-ark-operations-mcp.jarred-823.workers.dev/mcp` |
+| `~~slack` | Slack | claude.ai Slack connector |
 
 **Demo distribution list Sheet ID:** `1tYDIr6GZy5jl01oiWOrjXEyu6FdElaBil-i7lvh_oZs`
 
