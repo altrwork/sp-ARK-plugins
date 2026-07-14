@@ -1,12 +1,12 @@
 ---
 name: slack-happening-this-week
-description: Pulls this week's events from the sp-ARK Events calendar and drafts the Monday-morning "Happening This Week" member rundown message for Slack — day/time in Eastern, location, a short blurb, and an RSVP/Add to Calendar link under each event. Use when the user asks for "happening this week for Slack", the "Monday rundown", "weekly member update", "this week's events for Slack", or wants to post the weekly lineup to the members Slack channel. Not to be confused with the separate `sp-ark-happening-this-week` skill, which generates a Canva slide instead of a Slack message.
+description: Pulls this week's events from the sp-ARK Events calendar and sends the Monday-morning "Happening This Week" member rundown message to Slack — day/time in Eastern, location, a short blurb, and an RSVP/Add to Calendar link under every event. Defaults to #general-members but always confirms the channel and message with the user before sending. Use when the user asks for "happening this week for Slack", the "Monday rundown", "weekly member update", "this week's events for Slack", or wants to post the weekly lineup to the members Slack channel. Not to be confused with the separate `sp-ark-happening-this-week` skill, which generates a Canva slide instead of a Slack message.
 argument-hint: "[#slack-channel]"
 ---
 
 ## Overview
 
-Pulls every non-cancelled event for the current week from the shared **Events** calendar (owner `events@sp-ark-labs.com`) and drafts the Monday-morning member Slack message: emoji header, one bullet per event with day/date, Eastern time range, title, a short blurb pulled from the event description, location, and an RSVP link. Saves as a Slack draft — does not post.
+Pulls every non-cancelled event for the current week from the shared **Events** calendar (owner `events@sp-ark-labs.com`) and sends the Monday-morning member Slack message: emoji header, one bullet per event with day/date, Eastern time range, title, a short blurb pulled from the event description, location, and an RSVP/Add to Calendar link — that link is mandatory on every event, never omitted. Defaults to `#general-members`, but always shows the drafted message and confirms channel + send with the user before actually posting — this skill sends live, it does not save a draft.
 
 Deliberately **read-only against the calendar**: it uses `outlook_search_events`, not `outlook_update_event`. Writing the RSVP link into each event's own description would make Microsoft Graph email an "event updated" notification to every attendee (the Events calendar's organizer is `events@sp-ark-labs.com`), which we don't want just to add a link.
 
@@ -23,7 +23,7 @@ Invoked via `/slack-happening-this-week [#channel]`. Also responds to natural la
 
 | Input | Required | Notes |
 |---|---|---|
-| `channel` | No | Slack channel to draft into. If not given, ask which channel before drafting. |
+| `channel` | No | Slack channel to send to. Defaults to `#general-members` if not given. Regardless of default or explicit argument, always confirm the channel with the user before sending (Step 7). |
 
 ## Room → Floor Reference
 
@@ -90,24 +90,25 @@ See you all around the Center this week! :zap:
 Notes:
 - Only include the blurb line if `description` is non-empty and adds information beyond the subject.
 - Prefix `location` with its floor from the Room → Floor Reference table above when the room is listed there; otherwise use `location` as-is.
-- The RSVP line uses the event's `add_to_calendar_url`, formatted as a Slack link (`<url|Add to Calendar>`) — **but only when this message is actually delivered through the Slack API** (Step 8, via `~~slack`). Slack only parses `<url|label>` syntax on messages it receives through the API with mrkdwn enabled; it does **not** parse that syntax when a human pastes the literal text into the composer — Slack's client-side autolinker runs instead, and it reliably mangles/truncates URLs this long (confirmed 2026-07-13: a pasted `<url|label>` line got cut off mid-`uid`, leaving `|Add to Calendar>` as literal unparsed text).
+- The RSVP line is **mandatory on every single event** — unlike the blurb or location lines, it is never conditional and never omitted. Use the event's `add_to_calendar_url`, formatted as a Slack link (`<url|Add to Calendar>`) — this message is sent live through the Slack API (Step 8, via `~~slack`), which is required for `<url|label>` mrkdwn syntax to render as a link rather than literal text.
+- If `add_to_calendar_url` is missing or null for an event (should be rare — see `buildAddToCalendarUrl` in the operations worker), stop and flag it in the Step 8 report rather than sending an event with no RSVP link.
 - If the message text is being shown to a person for manual review, copy-paste, or Slack DM-to-self testing rather than sent via `~~slack`, use **bare URLs** instead (`RSVP: [add_to_calendar_url]`, no `<...|...>` wrapper) — bare URLs survive manual paste because Slack's autolinker handles plain URLs correctly; it's only the explicit mrkdwn link syntax that requires API delivery.
 
-### Step 7 — Confirm channel
+### Step 7 — Confirm channel and message before sending
 
-If a channel wasn't given as an argument, ask: *"Which Slack channel should this go to?"*
+Default `channel` to `#general-members` if not given as an argument. Regardless of whether it was given or defaulted, show the user the full drafted message and the target channel, and explicitly confirm before sending — this skill sends live to Slack, it does not save a draft for later review. Do not proceed to Step 8 without that confirmation.
 
-### Step 8 — Save as a Slack draft and report
+### Step 8 — Send via Slack and report
 
-Use `~~slack` to save the composed message as a draft in the specified channel — do not send; the team reviews and sends it manually, matching how invite drafts work elsewhere in this repo.
+Once confirmed, use `~~slack` to send the composed message to the confirmed channel.
 
 Then report:
+- Sent to: #[channel]
 - Events included: [N]
 - Events excluded (cancelled/HOLD): [N]
 - Rooms not in the floor table (if any): [list, so the table can be updated]
-- Draft saved to: #[channel]
 
-Show the full drafted message text back to the user.
+Show the full sent message text back to the user.
 
 ## Edge Cases
 
@@ -116,7 +117,9 @@ Show the full drafted message text back to the user.
 | Events calendar not found | Stop, tell the user to check `outlook_list_calendars` output |
 | Event has no description | Omit the blurb line — don't fabricate one |
 | Event has no location | Omit the location line |
+| Event has no `add_to_calendar_url` | Do not send that event's bullet without an RSVP link — stop and flag it in the Step 8 report instead |
 | Room not in the floor table | Use the room name with no floor prefix, flag it in the Step 8 report |
 | Two events at the same time | List both, sorted by subject |
-| Slack draft save fails | Output the full message text, but re-render RSVP lines as bare URLs first (`RSVP: [add_to_calendar_url]`, not `<url|Add to Calendar>`) — the mrkdwn link syntax breaks when pasted manually instead of delivered via the API |
+| User does not confirm channel/message in Step 7 | Do not call `~~slack`. Wait for explicit confirmation or a change of channel before sending. |
+| Slack send fails | Output the full message text, but re-render RSVP lines as bare URLs first (`RSVP: [add_to_calendar_url]`, not `<url|Add to Calendar>`) — the mrkdwn link syntax breaks when pasted manually instead of delivered via the API |
 | User wants to preview/test the message without posting to a channel | Render RSVP lines as bare URLs, not `<url|label>` mrkdwn, and don't call `~~slack` at all |
