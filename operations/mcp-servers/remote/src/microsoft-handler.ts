@@ -8,6 +8,7 @@ import {
 	isClientApproved,
 	OAuthError,
 	renderApprovalDialog,
+	sanitizeText,
 	validateCSRFToken,
 	validateOAuthState,
 } from "./workers-oauth-utils";
@@ -200,6 +201,175 @@ app.get("/callback", async (c) => {
 	const headers = new Headers({ Location: redirectTo });
 	if (clearSessionCookie) headers.set("Set-Cookie", clearSessionCookie);
 	return new Response(null, { status: 302, headers });
+});
+
+// ─── Vault-credential minting (no local script needed) ───────────────────────
+// Runs the exact same /authorize -> Microsoft -> /callback flow the real MCP
+// connector uses above, but with the "MCP client" role played by these routes
+// instead of an external app — so the final redirect lands back on this same
+// origin instead of a localhost listener a script has to run. Lets anyone
+// (Becca included) mint a Managed Agents vault credential from just a
+// browser — no Node, no git, no local script. Replaces the old
+// ceo-tools/inbox-agent/mint-vault-credential.mjs approach, which only worked
+// because the script and the signing-in browser had to be the same machine.
+//
+// Security note: reachable by anyone who can complete Microsoft sign-in in
+// the sp-ARK tenant — identical exposure to the /authorize connector flow
+// above, since ALLOWED_EMAILS is enforced later inside OperationsMCP.init(),
+// not at the OAuth layer. A non-allowlisted tenant member can mint a
+// valid-looking credential that yields zero tools when actually used.
+
+function base64UrlEncode(bytes: Uint8Array): string {
+	let str = "";
+	for (const b of bytes) str += String.fromCharCode(b);
+	return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function generatePkceVerifier(): string {
+	return base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
+}
+
+async function pkceChallengeFromVerifier(verifier: string): Promise<string> {
+	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+	return base64UrlEncode(new Uint8Array(digest));
+}
+
+app.get("/mint-credential", (c) => {
+	const host = sanitizeText(new URL(c.req.url).host);
+	const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Get an MCP vault credential</title>
+<style>
+	body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 480px; margin: 64px auto; padding: 0 20px; color: #1a1a1a; line-height: 1.5; }
+	h1 { font-size: 20px; }
+	p { color: #444; }
+	a.btn { display: inline-block; margin-top: 16px; padding: 12px 20px; border-radius: 8px; background: #0078d4; color: #fff; text-decoration: none; font-weight: 600; }
+</style>
+</head>
+<body>
+	<h1>Get an MCP vault credential</h1>
+	<p>This signs you in with your Microsoft account and gives you a credential that lets a scheduled Claude agent act on your behalf against this server (${host}). You'll get a block of values to paste into the agent's vault setup — copy them and close the tab afterward.</p>
+	<a class="btn" href="/mint-credential/start">Sign in with Microsoft</a>
+</body>
+</html>`;
+	return c.html(html);
+});
+
+app.get("/mint-credential/start", async (c) => {
+	const origin = new URL(c.req.url).origin;
+	const redirectUri = `${origin}/mint-credential/callback`;
+
+	const regRes = await c.env.SELF.fetch(`${origin}/register`, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({
+			redirect_uris: [redirectUri],
+			client_name: "Vault Credential Minter",
+			grant_types: ["authorization_code", "refresh_token"],
+			response_types: ["code"],
+			token_endpoint_auth_method: "none",
+		}),
+	});
+	const regText = await regRes.text();
+	let regBody: any = {};
+	try {
+		regBody = JSON.parse(regText);
+	} catch {}
+	if (!regRes.ok || !regBody.client_id) {
+		return c.text(`Registration failed: status=${regRes.status} body=${regText}`, 500);
+	}
+	const clientId = regBody.client_id as string;
+
+	const verifier = generatePkceVerifier();
+	const challenge = await pkceChallengeFromVerifier(verifier);
+	const state = crypto.randomUUID();
+
+	await c.env.OAUTH_KV.put(
+		`mint:state:${state}`,
+		JSON.stringify({ client_id: clientId, verifier }),
+		{ expirationTtl: 600 },
+	);
+
+	const authUrl = new URL(`${origin}/authorize`);
+	authUrl.searchParams.set("response_type", "code");
+	authUrl.searchParams.set("client_id", clientId);
+	authUrl.searchParams.set("redirect_uri", redirectUri);
+	authUrl.searchParams.set("state", state);
+	authUrl.searchParams.set("code_challenge", challenge);
+	authUrl.searchParams.set("code_challenge_method", "S256");
+
+	return c.redirect(authUrl.toString(), 302);
+});
+
+app.get("/mint-credential/callback", async (c) => {
+	const origin = new URL(c.req.url).origin;
+	const code = c.req.query("code");
+	const state = c.req.query("state");
+	if (!code || !state) return c.text("Missing code or state.", 400);
+
+	const storedJson = await c.env.OAUTH_KV.get(`mint:state:${state}`);
+	if (!storedJson) {
+		return c.text("This link expired or was already used — start over at /mint-credential.", 400);
+	}
+	await c.env.OAUTH_KV.delete(`mint:state:${state}`);
+	const { client_id: clientId, verifier } = JSON.parse(storedJson) as {
+		client_id: string;
+		verifier: string;
+	};
+
+	const redirectUri = `${origin}/mint-credential/callback`;
+	const tokenRes = await c.env.SELF.fetch(`${origin}/token`, {
+		method: "POST",
+		headers: { "content-type": "application/x-www-form-urlencoded" },
+		body: new URLSearchParams({
+			grant_type: "authorization_code",
+			code,
+			redirect_uri: redirectUri,
+			client_id: clientId,
+			code_verifier: verifier,
+		}),
+	});
+	const tok: any = await tokenRes.json().catch(() => ({}));
+	if (!tokenRes.ok || !tok.access_token) {
+		return c.text(`Token exchange failed: ${JSON.stringify(tok)}`, 500);
+	}
+
+	const expiresAt = new Date(Date.now() + (tok.expires_in ?? 3600) * 1000).toISOString();
+	const credentialBlock = `mcp_server_url: ${origin}/mcp
+access_token: "${tok.access_token}"
+expires_at: "${expiresAt}"
+refresh_token: "${tok.refresh_token || ""}"
+client_id: "${clientId}"
+token_endpoint: ${origin}/token`;
+
+	const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Your MCP vault credential</title>
+<style>
+	body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 560px; margin: 48px auto; padding: 0 20px; color: #1a1a1a; line-height: 1.5; }
+	h1 { font-size: 20px; }
+	.warn { background: #fff4e5; border: 1px solid #f5c26b; border-radius: 8px; padding: 12px 16px; margin: 16px 0; font-size: 14px; }
+	pre { background: #1e1e1e; color: #e6e6e6; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; white-space: pre-wrap; word-break: break-all; }
+	button { margin-top: 12px; padding: 10px 18px; border-radius: 8px; border: none; background: #0078d4; color: #fff; font-weight: 600; cursor: pointer; }
+</style>
+</head>
+<body>
+	<h1>Your MCP vault credential</h1>
+	<div class="warn">These values are sensitive — anyone with them can act as you against this server. Copy them into the vault credential setup now, then close this tab.</div>
+	<pre id="cred">${sanitizeText(credentialBlock)}</pre>
+	<button onclick="navigator.clipboard.writeText(document.getElementById('cred').textContent)">Copy to clipboard</button>
+</body>
+</html>`;
+
+	return c.html(html, 200, { "Cache-Control": "no-store" });
 });
 
 // Public, unauthenticated calendar-link routes. Microsoft Graph has no endpoint

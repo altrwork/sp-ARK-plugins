@@ -32,6 +32,16 @@
       "id": "792b3f410ee140048d0da141d6287964"
     }
   ],
+  // Self-referencing service binding — Cloudflare Workers can't fetch their own
+  // public URL from within themselves (error 1042), so /mint-credential's
+  // internal calls to this same worker's /register and /token routes go through
+  // this binding instead of a plain fetch().
+  "services": [
+    {
+      "binding": "SELF",
+      "service": "sp-ark-operations-mcp"
+    }
+  ],
   // Non-secret configuration. Secrets are set with `wrangler secret put`:
   //   COOKIE_ENCRYPTION_KEY, BOSSHUB_ACCESS_TOKEN, VERKADA_API_KEY,
   //   NEXUDUS_ACCESS_TOKEN, MS_CLIENT_SECRET

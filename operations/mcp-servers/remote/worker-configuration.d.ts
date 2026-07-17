@@ -5,6 +5,11 @@ declare namespace Cloudflare {
 		// Bindings
 		MCP_OBJECT: DurableObjectNamespace;
 		OAUTH_KV: KVNamespace;
+		// Self-referencing service binding — see wrangler.jsonc comment. Used by
+		// /mint-credential to call this same worker's /register and /token routes
+		// internally (a plain fetch() to the worker's own public URL is blocked by
+		// Cloudflare error 1042).
+		SELF: Fetcher;
 		// OAuth + encryption secrets
 		COOKIE_ENCRYPTION_KEY: string;
 		// Upstream API secrets

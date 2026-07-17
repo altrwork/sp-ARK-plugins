@@ -1,7 +1,0 @@
-{
-  "name": "sp-ark-ceo-tools",
-  "version": "0.1.0",
-  "description": "CEO tools for sp-ARK Labs — Microsoft Excel/SharePoint write access and Outlook read/write via delegated Microsoft OAuth.",
-  "author": "sp-ARK Labs",
-  "skills": []
-}

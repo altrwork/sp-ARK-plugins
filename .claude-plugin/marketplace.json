@@ -7,17 +7,6 @@
   "description": "AI agent skills for sp-ARK startup accelerator operations",
   "plugins": [
     {
-      "name": "sp-ark-ceo-tools",
-      "displayName": "CEO Tools",
-      "source": "./ceo-tools",
-      "description": "Excel/SharePoint write access and Outlook read-write for the sp-ARK Labs CEO via delegated Microsoft OAuth.",
-      "author": {
-        "name": "Jarred Robidoux",
-        "email": "jarredrobidoux@gmail.com"
-      },
-      "keywords": ["excel", "sharepoint", "outlook", "microsoft", "ceo", "accelerator"]
-    },
-    {
       "name": "sp-ark-community",
       "displayName": "Community Management",
       "source": "./community-management",

@@ -19,6 +19,7 @@ const ALLOWED_EMAILS = new Set<string>([
 	"brownr@sp-ark-labs.com", 
 	"kange@sp-ark-labs.com",
 	"twilson@tbinnovates.com",
+	"schroffr@sp-ark-labs.com"
 ]);
 
 // ─── Shared helpers ─────────────────────────────────────────────────────────────
@@ -714,6 +715,80 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 				}
 			);
 
+			// Guest/visitor registration lives under a separate /api/public/visitors
+			// namespace (not /api/spaces/...) — Nexudus docs call for a "customer bearer
+			// token" here without clarifying if that's distinct from the admin token used
+			// above. Reusing nexudusRequest's cached token; a scope mismatch will surface
+			// as a normal 401/403 from nexudusRequest, same as any other misconfiguration.
+
+			this.server.tool(
+				"nexudus_register_visitor",
+				"Register a guest/visitor (not a full member) expected at the space, e.g. for front-desk check-in. Distinct from nexudus_create_person, which creates a paying coworker/member.",
+				{
+					full_name: z.string().min(1),
+					expected_arrival: z.string().describe("Expected arrival, ISO 8601 (e.g. 2024-06-25T14:00:00Z)"),
+					email: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Must be a valid email address").optional().describe("For visitor notifications"),
+					phone_number: z.string().optional(),
+					notes: z.string().optional().describe("Notes from the host for the visitor or front desk"),
+				},
+				async ({ full_name, expected_arrival, email, phone_number, notes }) => {
+					const missing = nxMissingConfig();
+					if (missing.length) return jsonResponse(blocked("Nexudus API configuration is incomplete.", { missing }));
+					const payload: Record<string, unknown> = {
+						BusinessId: parseInt(env.NEXUDUS_BUSINESS_ID, 10),
+						FullName: full_name,
+						ExpectedArrival: expected_arrival,
+					};
+					if (email) payload.Email = email;
+					if (phone_number) payload.PhoneNumber = phone_number;
+					if (notes) payload.CustomerNotes = notes;
+					if (nxDryRun) return jsonResponse(blocked("NEXUDUS_DRY_RUN is enabled. Set NEXUDUS_DRY_RUN=false to register visitors.", { payload }));
+					const result = await nexudusRequest("/api/public/visitors", { method: "POST", body: JSON.stringify([payload]) });
+					return jsonResponse(ok({ visitor_registered: true, full_name, expected_arrival, result }));
+				}
+			);
+
+			this.server.tool(
+				"nexudus_list_visitors",
+				"List registered guests/visitors. Set show_upcoming=true to return only future visits.",
+				{
+					show_upcoming: z.boolean().optional().describe("If true, only return visits that haven't happened yet"),
+				},
+				async ({ show_upcoming }) => {
+					const missing = nxMissingConfig();
+					if (missing.length) return jsonResponse(blocked("Nexudus API configuration is incomplete.", { missing }));
+					const params = new URLSearchParams();
+					if (show_upcoming !== undefined) params.set("showUpcoming", String(show_upcoming));
+					const result = await nexudusRequest(`/api/public/visitors/my?${params.toString()}`);
+					const records = (result.Records || result || []).map((v: any) => ({
+						id: v.Id,
+						full_name: v.FullName,
+						email: v.Email,
+						phone_number: v.PhoneNumber,
+						notes: v.Notes,
+						expected_arrival: v.ExpectedArrival,
+						arrived: v.Arrived,
+						arrival_date: v.ArrivalDate,
+					}));
+					return jsonResponse(ok({ visitors: records }));
+				}
+			);
+
+			this.server.tool(
+				"nexudus_cancel_visitor",
+				"Cancel (delete) a registered visitor by ID. Use nexudus_list_visitors to find the visitor ID first.",
+				{
+					visitor_id: z.number().int().positive().describe("Visitor ID to cancel"),
+				},
+				async ({ visitor_id }) => {
+					const missing = nxMissingConfig();
+					if (missing.length) return jsonResponse(blocked("Nexudus API configuration is incomplete.", { missing }));
+					if (nxDryRun) return jsonResponse(blocked("NEXUDUS_DRY_RUN is enabled. Set NEXUDUS_DRY_RUN=false to cancel visitors.", { visitor_id }));
+					await nexudusRequest(`/api/public/visitors/${visitor_id}`, { method: "DELETE" });
+					return jsonResponse(ok({ visitor_cancelled: true, visitor_id }));
+				}
+			);
+
 			// ── Microsoft Outlook (Graph API) ─────────────────────────────────────────
 
 		const msMissingConfig = (): string[] => {
@@ -1015,6 +1090,119 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 					body: JSON.stringify(payload),
 				});
 				return jsonResponse(ok({ event_updated: true, event: normalizeEvent(result) }));
+			}
+		);
+
+		// Ported from the retired ceo-tools worker (2026-07-17) — same tools, switched
+		// from a fixed-mailbox client-credentials token to /me/... on the signed-in
+		// user's own delegated token, consistent with every other tool in this file.
+
+		this.server.tool(
+			"outlook_list_emails",
+			"List recent emails from the signed-in user's Outlook mailbox folder.",
+			{
+				folder: z
+					.enum(["inbox", "sentitems", "drafts", "deleteditems"])
+					.default("inbox")
+					.optional()
+					.describe("Mailbox folder. Default: inbox"),
+				limit: z.number().int().positive().max(50).default(20).optional(),
+				unread_only: z.boolean().default(false).optional(),
+			},
+			async ({ folder = "inbox", limit = 20, unread_only = false }) => {
+				const missing = msMissingConfig();
+				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
+				let url = `/me/mailFolders/${folder}/messages?$top=${limit}&$orderby=receivedDateTime desc&$select=id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview`;
+				if (unread_only) url += "&$filter=isRead eq false";
+				const result = await graphRequest(url);
+				const messages = (result.value || []).map((m: any) => ({
+					id: m.id,
+					subject: m.subject,
+					from: m.from?.emailAddress,
+					to: m.toRecipients?.map((r: any) => r.emailAddress),
+					received: m.receivedDateTime,
+					is_read: m.isRead,
+					has_attachments: m.hasAttachments,
+					preview: m.bodyPreview,
+				}));
+				return jsonResponse(ok({ messages, count: messages.length }));
+			}
+		);
+
+		this.server.tool(
+			"outlook_search_emails",
+			"Search the signed-in user's Outlook mailbox across all folders by keyword, sender, subject, or date.",
+			{
+				query: z.string().min(1).describe("Search query. Supports 'from:email', 'subject:text', date ranges, or plain keywords."),
+				limit: z.number().int().positive().max(50).default(20).optional(),
+			},
+			async ({ query, limit = 20 }) => {
+				const missing = msMissingConfig();
+				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
+				const result = await graphRequest(
+					`/me/messages?$search="${encodeURIComponent(query)}"&$top=${limit}&$select=id,subject,from,toRecipients,receivedDateTime,isRead,bodyPreview`
+				);
+				const messages = (result.value || []).map((m: any) => ({
+					id: m.id,
+					subject: m.subject,
+					from: m.from?.emailAddress,
+					to: m.toRecipients?.map((r: any) => r.emailAddress),
+					received: m.receivedDateTime,
+					is_read: m.isRead,
+					preview: m.bodyPreview,
+				}));
+				return jsonResponse(ok({ messages, count: messages.length }));
+			}
+		);
+
+		this.server.tool(
+			"outlook_read_email",
+			"Read the full content of a single email in the signed-in user's mailbox by its ID.",
+			{
+				message_id: z.string().min(1),
+			},
+			async ({ message_id }) => {
+				const missing = msMissingConfig();
+				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
+				const m = await graphRequest(
+					`/me/messages/${message_id}?$select=id,subject,from,toRecipients,ccRecipients,receivedDateTime,body,hasAttachments,conversationId`
+				);
+				return jsonResponse(ok({
+					id: m.id,
+					conversation_id: m.conversationId,
+					subject: m.subject,
+					from: m.from?.emailAddress,
+					to: m.toRecipients?.map((r: any) => r.emailAddress),
+					cc: m.ccRecipients?.map((r: any) => r.emailAddress),
+					received: m.receivedDateTime,
+					has_attachments: m.hasAttachments,
+					body_type: m.body?.contentType,
+					body: m.body?.content,
+				}));
+			}
+		);
+
+		this.server.tool(
+			"outlook_reply_to_email",
+			"Reply to an existing email thread as the signed-in user.",
+			{
+				message_id: z.string().min(1),
+				body_html: z.string().min(1).describe("Reply body as HTML"),
+				reply_all: z.boolean().default(false).optional().describe("Reply to all recipients. Default: false"),
+			},
+			async ({ message_id, body_html, reply_all = false }) => {
+				const missing = msMissingConfig();
+				if (missing.length) return jsonResponse(blocked("Microsoft Graph configuration is incomplete.", { missing }));
+				const endpoint = reply_all
+					? `/me/messages/${message_id}/replyAll`
+					: `/me/messages/${message_id}/reply`;
+				await graphRequest(endpoint, {
+					method: "POST",
+					body: JSON.stringify({
+						message: { body: { contentType: "HTML", content: body_html } },
+					}),
+				});
+				return jsonResponse(ok({ replied: true, reply_all, from: this.props!.email }));
 			}
 		);
 	}
