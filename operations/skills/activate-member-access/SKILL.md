@@ -101,7 +101,9 @@ Nexudus auth note: Nexudus supports bearer tokens from `POST /api/token` with fo
 
 Use Microsoft 365 Outlook to draft a welcome email from Edwin to `[email]`.
 
-Use the template at `references/welcome-email.md`. Substitute `{member_name}` with the member's first name.
+Use the template at `references/welcome-email.md`. Substitute `{member_name}` with the member's first name. The template includes a static Slack workspace invite link — no separate Slack invite step is needed (Slack's API has no way to invite a new member on our Pro plan; SCIM requires Business+/Enterprise and `admin.users.invite` requires Enterprise).
+
+**Slack invite link expires every 30 days (or 400 uses), whichever comes first.** If the member reports the link doesn't work, have an Edwin (workspace owner/admin) generate a fresh one from Slack → workspace name → Invite people → Edit link settings, and update `references/welcome-email.md` with the new link.
 
 Save the message as a draft with subject **"Welcome to spARK Labs!"**. Do not send automatically unless the user explicitly asks.
 

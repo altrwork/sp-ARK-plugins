@@ -8,7 +8,7 @@ You should have received invites to:
 
 Nexudus - our member portal for bookings and payments.
 
-Slack - for community communication and updates.
+Slack - for community communication and updates. Join here: https://join.slack.com/t/sparklabsbyarkinvest/shared_invite/zt-43gxarqo3-uN0Rq6cKbinfHX4nGmYTEQ
 
 Verkada - for building access. Just a heads up, the link expires within 24 hours of receiving it. If you have any trouble joining, just let me know.
 
