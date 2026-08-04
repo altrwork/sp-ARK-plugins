@@ -1,0 +1,6 @@
+name: sp-ark-friends-of-spark-agent-env
+config:
+  type: cloud
+  networking:
+    type: limited
+    allow_mcp_servers: true
