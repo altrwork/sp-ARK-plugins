@@ -234,8 +234,27 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 				if (!env.BOSSHUB_ACCESS_TOKEN) {
 					return jsonResponse(blocked("BOSSHUB_ACCESS_TOKEN is not configured.", { required_scope: "forms.readonly" }));
 				}
-				const result = await bosshubRequest("/forms/", { locationId: env.BOSSHUB_LOCATION_ID });
-				return jsonResponse(ok({ forms: result.forms || [], total: result.total || 0 }));
+				// GHL's /forms/ endpoint defaults to 10 results per page (confirmed: a
+				// bare call returned 10 of 16 forms) and pages via skip/limit — NOT
+				// page/limit (verified against marketplace.gohighlevel.com/docs/ghl/
+				// forms/get-forms: `skip` is an offset, `limit` maxes out at 50). Page
+				// through with skip until `total` is reached, capped at 20 iterations
+				// as a safety net in case `total` is ever missing or wrong.
+				const forms: any[] = [];
+				let skip = 0;
+				let total = 0;
+				const limit = 50;
+				let iterations = 0;
+				do {
+					const result = await bosshubRequest("/forms/", { locationId: env.BOSSHUB_LOCATION_ID, skip, limit });
+					const pageForms = result.forms || [];
+					total = result.total ?? forms.length + pageForms.length;
+					if (pageForms.length === 0) break;
+					forms.push(...pageForms);
+					skip += pageForms.length;
+					iterations++;
+				} while (forms.length < total && iterations < 20);
+				return jsonResponse(ok({ forms, total }));
 			}
 		);
 
