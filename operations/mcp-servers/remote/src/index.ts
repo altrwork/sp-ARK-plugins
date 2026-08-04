@@ -293,6 +293,71 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 			}
 		);
 
+		// GHL's Contacts API is versioned separately from the Forms API used above
+		// (literal header value "v3", not env.BOSSHUB_API_VERSION) — confirmed against
+		// marketplace.gohighlevel.com/docs/ghl/contacts/. Requires contacts.readonly /
+		// contacts.write scopes on the same BOSSHUB_ACCESS_TOKEN private integration
+		// token (added 2026-08-03 for Friends of spARK tag-based pipeline state).
+		const bosshubContactsRequest = async (path: string, options: RequestInit = {}) => {
+			if (!env.BOSSHUB_ACCESS_TOKEN) throw new Error("BOSSHUB_ACCESS_TOKEN is not configured.");
+			const response = await fetch(`${env.BOSSHUB_API_BASE_URL}${path}`, {
+				...options,
+				headers: {
+					accept: "application/json",
+					"content-type": "application/json",
+					authorization: `Bearer ${env.BOSSHUB_ACCESS_TOKEN}`,
+					version: "v3",
+					...(options.headers || {}),
+				},
+			});
+			const text = await response.text();
+			let body: any = {};
+			if (text) {
+				try { body = JSON.parse(text); } catch { body = { raw: text }; }
+			}
+			if (!response.ok) {
+				throw new Error(JSON.stringify({ status: response.status, statusText: response.statusText, body }));
+			}
+			return body;
+		};
+
+		this.server.tool(
+			"bosshub_get_contact",
+			"Get a BossHub/GHL contact by ID, including their current tags. Use to check pipeline state (e.g. whether a Friends of spARK applicant has already been onboarded) before sending a follow-up.",
+			{ contact_id: z.string().min(1) },
+			async ({ contact_id }) => {
+				if (!env.BOSSHUB_ACCESS_TOKEN) return jsonResponse(blocked("BOSSHUB_ACCESS_TOKEN is not configured.", { contact_id }));
+				const result = await bosshubContactsRequest(`/contacts/${encodeURIComponent(contact_id)}`);
+				const contact = result.contact || {};
+				return jsonResponse(ok({
+					contact: {
+						id: contact.id,
+						email: contact.email,
+						first_name: contact.firstName,
+						last_name: contact.lastName,
+						tags: contact.tags || [],
+					},
+				}));
+			}
+		);
+
+		this.server.tool(
+			"bosshub_tag_contact",
+			"Add one or more tags to a BossHub/GHL contact. Use to record pipeline state (e.g. 'friends-onboarded') after sending a follow-up, so it isn't sent again on a later run.",
+			{
+				contact_id: z.string().min(1),
+				tags: z.array(z.string().min(1)).min(1),
+			},
+			async ({ contact_id, tags }) => {
+				if (!env.BOSSHUB_ACCESS_TOKEN) return jsonResponse(blocked("BOSSHUB_ACCESS_TOKEN is not configured.", { contact_id, tags }));
+				const result = await bosshubContactsRequest(`/contacts/${encodeURIComponent(contact_id)}/tags`, {
+					method: "POST",
+					body: JSON.stringify({ tags }),
+				});
+				return jsonResponse(ok({ contact_id, tags: result.tags || tags }));
+			}
+		);
+
 		// ── Verkada ──────────────────────────────────────────────────────────────
 
 		const vkBaseUrl = () => `https://${env.VERKADA_REGION}.verkada.com`;
@@ -556,8 +621,14 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 				email: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Must be a valid email address"),
 				company_name: z.string().optional(),
 				tariff_id: z.number().int().positive(),
+				send_welcome_email: z
+					.boolean()
+					.default(true)
+					.describe(
+						"Maps to Nexudus's CreateUser field — grants member portal/app access and sends the member a welcome email with their access details. This is the 'send a welcome message... and grant them access to your portal' toggle on the Nexudus add-customer screen. Defaults to true."
+					),
 			},
-			async ({ first_name, last_name, email, company_name, tariff_id }) => {
+			async ({ first_name, last_name, email, company_name, tariff_id, send_welcome_email }) => {
 				const payload = {
 					FullName: `${first_name} ${last_name}`,
 					Email: email,
@@ -566,6 +637,7 @@ export class OperationsMCP extends McpAgent<Env, Record<string, never>, Props> {
 					TariffId: tariff_id,
 					CountryId: 1221,
 					SimpleTimeZoneId: 2013,
+					CreateUser: send_welcome_email,
 				};
 				const missing = nxMissingConfig();
 				if (missing.length) return jsonResponse(blocked("Nexudus API configuration is incomplete.", { missing, payload }));

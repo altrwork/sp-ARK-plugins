@@ -82,7 +82,7 @@ Bluetooth unlock has no public Verkada API endpoint as of this writing — that 
 Use the Nexudus connector tools:
 
 1. Call `nexudus_find_person` with `[email]`.
-2. If none exists, determine the correct plan using the table below, then call `nexudus_create_person` with `[first name] [last name]`, `[email]`, `[company_name]`, and the resolved `tariff_id`.
+2. If none exists, determine the correct plan using the table below, then call `nexudus_create_person` with `[first name] [last name]`, `[email]`, `[company_name]`, and the resolved `tariff_id`. Leave `send_welcome_email` at its default (`true`) so the member gets portal access and the Nexudus welcome email with their access details — this is the "send a welcome message... and grant them access to your portal" toggle on Nexudus's add-customer screen.
 
 **Plan mapping — use `membership_type` from the confirmed BossHub data to look up the Nexudus tariff ID. If the membership type is not in this table, ask Edwin to confirm before creating.**
 

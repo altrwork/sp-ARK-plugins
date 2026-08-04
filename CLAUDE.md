@@ -24,12 +24,13 @@ sp-ARK-plugins/
 │   └── marketplace.json              # Marketplace catalog for all plugins
 ├── assets/
 │   └── sp-ark-labs-logo.png
-├── ceo-tools/                        # Not a plugin — just inbox-agent/, a scheduled
-│   └── inbox-agent/                  # Managed Agent that calls the operations MCP server
+├── ceo-tools/                        # Not a plugin — inbox-agent/, a scheduled Managed
+│   └── inbox-agent/                  # Agent that calls the operations MCP server
 ├── marketing/                        # Plugin: event marketing automation
-│   ├── .claude-plugin/plugin.json
-│   ├── CONNECTORS.md
-│   ├── README.md
+│   ├── .claude-plugin/plugin.json    # skills field points at ./skills/ only —
+│   ├── CONNECTORS.md                 # friends-of-spark-agent/ below is a sibling
+│   ├── README.md                     # Managed Agent, not a plugin skill
+│   ├── friends-of-spark-agent/       # Drafts Friends of spARK steps 6/7/8 (see below)
 │   └── skills/
 │       ├── inbox-scraper/
 │       ├── draft-invites/
@@ -82,8 +83,12 @@ Member events live on a separate **Events** calendar (`outlook_list_calendars` �
 
 **Guest/visitor registration (added 2026-07-15):** `nexudus_register_visitor`, `nexudus_list_visitors`, `nexudus_cancel_visitor` register a one-off guest (front-desk check-in) rather than a paying coworker/member — use `nexudus_create_person` for actual members. These hit a separate Nexudus namespace, `/api/public/visitors/...`, not the `/api/spaces/...` admin API the other Nexudus tools use. Nexudus's docs say this namespace requires a "customer bearer token" without clarifying whether that's the same token type as the admin password-grant token cached for `/api/spaces/...` calls — the tools reuse that cached token, so if the scopes actually differ, expect a 401/403 the first time these run (same failure shape as the Verkada Core-permission gotcha above), not a silent bug.
 
+**Friends of spARK Contacts tools (added 2026-08-03):** `bosshub_get_contact` and `bosshub_tag_contact` call GHL's Contacts API (`GET /contacts/:contactId`, `POST /contacts/:contactId/tags`) — versioned separately from the Forms API used by the tools above (literal header `Version: v3`, not `env.BOSSHUB_API_VERSION`). Require `contacts.readonly`/`contacts.write` scopes, added to the existing `BOSSHUB_ACCESS_TOKEN` Private Integration token alongside its `forms.readonly`/`forms.write` scopes — editing scopes on a GHL Private Integration does **not** rotate the token, so no Cloudflare secret change was needed. Built for `marketing/friends-of-spark-agent` (below) to track per-contact pipeline state (`friends-onboarded`, `friends-ll-reminded`, `friends-renewal-reminded`) as GHL contact tags — deliberately not a separate Sheet/KV, since payment data itself (name, email, tier via amount, payment date) already lives entirely in BossHub's Friends of spARK Payment Form (`wpTj12LnfXrnztBKPVqO`, distinct from the Friends of spARK Application Form `u7DKgYF3POc6uQ32GgwF` — the two forms' `contact_id`s don't always match for the same person, so the agent deliberately never joins them; it treats the Payment Form as the sole source of truth).
+
+**Nexudus welcome email/portal access (added 2026-08-04):** the "send a welcome message to each individual customer with their access details and grant them access to your portal" toggle on Nexudus's add-customer screen maps to `CreateUser` (boolean) on `POST /api/spaces/coworkers` — confirmed against `learn.nexudus.com/rest-api/spaces/post-coworkers`, not documented anywhere the tool's original payload was built from, so it was previously omitted entirely (defaulting to off). `nexudus_create_person` now exposes this as `send_welcome_email` (default `true`), passed straight through as `CreateUser`.
+
 Tools:
-- BossHub: `bosshub_list_forms`, `bosshub_list_submissions`, `bosshub_get_submission`
+- BossHub: `bosshub_list_forms`, `bosshub_list_submissions`, `bosshub_get_submission`, `bosshub_get_contact`, `bosshub_tag_contact`
 - Verkada: `verkada_find_access_user`, `verkada_create_access_user`, `verkada_list_access_groups`, `verkada_add_user_to_access_group`, `verkada_send_pass_invite`, `verkada_activate_remote_unlock`
 - Nexudus: `nexudus_find_person`, `nexudus_create_person`, `nexudus_assign_booking_access`, `nexudus_list_resources`, `nexudus_list_bookings`, `nexudus_create_booking`, `nexudus_cancel_booking`, `nexudus_register_visitor`, `nexudus_list_visitors`, `nexudus_cancel_visitor`
 - Outlook (delegated, as the signed-in user): `outlook_create_draft`, `outlook_send_mail`, `outlook_send_draft`, `outlook_list_calendars`, `outlook_search_events`, `outlook_create_event`, `outlook_update_event`, `outlook_list_emails`, `outlook_search_emails`, `outlook_read_email`, `outlook_reply_to_email`
@@ -103,6 +108,20 @@ Event marketing automation.
 - `draft-invites` — `/draft-invites "<event details>"`; reads the distribution list Sheet, finds uninvited contacts, saves personalized Gmail drafts, updates the `Events Invited` column.
 - `match-interns` — `/match-interns`; pulls intern applications and member intern requests from BossHub, matches interns to member companies by skills/industry/availability, optionally drafts intro emails.
 - `slack-happening-this-week` — `/slack-happening-this-week [#channel]`; pulls this week's events off the shared Events calendar, converts times to Eastern, and drafts the Monday-morning member Slack message with an RSVP/add-to-calendar link under each event. Read-only against the calendar — see `operations/mcp-servers/remote/`'s CLAUDE.md notes on `add_to_calendar_url` for why it doesn't write back to events. Not to be confused with the unrelated `sp-ark-happening-this-week` global skill, which generates a Canva slide.
+
+**Not a skill — a Managed Agent living alongside them:** `friends-of-spark-agent/` (sibling
+to `skills/`, not inside it — the plugin manifest's `skills` field points only at
+`./skills/`, so this isn't picked up as one). Runs on a daily cron via Anthropic Managed
+Agents, drafting the automated tail of the Friends of spARK email sequence (steps 6/7/8:
+onboarding, Lunch & Learn reminder, renewal reminder) into Caitlin Ryan's Outlook Drafts
+for her to review — she never opens BossHub or does any tagging herself. State lives as
+tags on the BossHub contact (`friends-onboarded`/`friends-ll-reminded`/
+`friends-renewal-reminded`), written by the agent via the `bosshub_get_contact`/
+`bosshub_tag_contact` tools noted above. See `marketing/friends-of-spark-agent/README.md`
+for the full design and one-time OAuth setup (Caitlin runs `mint-vault-credential.mjs`
+herself and signs in as `caitlinr@sp-ark-labs.com` — same pattern as `inbox-agent` needs
+for Becca, just landing in `marketing/` instead of `ceo-tools/` since this is Caitlin's
+workflow, not an internal ops tool).
 
 **Connector placeholders:**
 
