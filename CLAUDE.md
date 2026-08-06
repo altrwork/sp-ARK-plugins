@@ -43,7 +43,8 @@ sp-ARK-plugins/
 │   │   └── remote/                   # Cloudflare Worker (Microsoft OAuth)
 │   └── skills/
 │       ├── send-member-agreement/
-│       └── activate-member-access/
+│       ├── activate-member-access/
+│       └── send-event-template/
 └── community-management/             # Plugin: community operations
     ├── .claude-plugin/plugin.json
     ├── .mcp.json                     # Microsoft 365 MCP server config
@@ -94,6 +95,8 @@ Tools:
 - Outlook (delegated, as the signed-in user): `outlook_create_draft`, `outlook_send_mail`, `outlook_send_draft`, `outlook_list_calendars`, `outlook_search_events`, `outlook_create_event`, `outlook_update_event`, `outlook_list_emails`, `outlook_search_emails`, `outlook_read_email`, `outlook_reply_to_email`
 
 The last four (`outlook_list_emails`/`outlook_search_emails`/`outlook_read_email`/`outlook_reply_to_email`) were ported in from the retired `sp-ark-ceo-tools` worker — see "CEO Tools consolidation" above. `ceo-tools/inbox-agent` depends on exactly these four; renaming or removing them requires updating `inbox-agent.agent.yaml`'s `mcp_toolset` `configs` too.
+
+**BossHub `fieldMap`/`normalizeSubmission` is shared across all forms (added 2026-08-06 for `send-event-template`):** `bosshub_list_submissions`/`bosshub_get_submission` run every submission through one `normalizeSubmission()`, regardless of `form_id` — there's no per-form schema. Field IDs are opaque GHL-generated strings with no schema endpoint to read labels from, so each new field gets reverse-engineered from submission values and added to the single shared `fieldMap` in `src/index.ts` by a unique key name (collisions aren't a risk since names differ per form). The **spARK Labs Event Inquiry Form** (`JuAudDvFOm9CGB602qmE`) fields (`entity_type`, `event_name`, `event_description`, `event_audience`, `expected_attendees`, `event_date_start`/`event_date_end`, `event_start_time`/`event_end_time`, `event_space_requested`) were added this way. `entity_type` (For-profit/Nonprofit) drives the 25% nonprofit discount in `send-event-template`'s pricing math; `event_name` doubles as the DocuSign "Type of Event" field since the form has no separate event-type/category question.
 
 Wrangler secrets: `COOKIE_ENCRYPTION_KEY`, `BOSSHUB_ACCESS_TOKEN`, `VERKADA_API_KEY`, `NEXUDUS_ACCESS_TOKEN` (or `NEXUDUS_USERNAME` + `NEXUDUS_PASSWORD`), `MS_CLIENT_SECRET`
 
@@ -167,6 +170,7 @@ New member onboarding across agreements, building access, member portal, and Sla
 **Skills:**
 - `send-member-agreement` — `/send-member-agreement [member name or email]`; reads a BossHub inquiry, confirms details with Edwin, collects pricing, sends the membership agreement via DocuSign.
 - `activate-member-access` — `/activate-member-access [member email]`; confirms signing, creates Verkada access user (All Access group, Pass app invite, remote unlock), creates Nexudus member account, drafts Outlook welcome email.
+- `send-event-template` — `/send-event-template [event name, company, or submitter email]`; reads a BossHub Event Inquiry Form submission, confirms details with Edwin, calculates rental pricing off the Events Constitution rate card, and sends the Event Agreement via DocuSign. Unlike the member template, this template's fillable fields are document-level DocuSign prefill tabs, not recipient-locked tabs — see `references/EventAgreementTemplate.json` in the skill folder. Covers intake-to-DocuSign only; theme-alignment approval, logistics, and calendar/marketing comms stay with Edwin/Cassandra per `references/spARK-Labs-External-Events-Constitution.pdf`.
 
 **BossHub/LeadConnector:**
 - Location ID: `jqh6rxfWtvMIQCKxcDlc`

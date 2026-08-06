@@ -125,6 +125,21 @@ const fieldMap: Record<string, string> = {
 	communication_preference: "v9JpZpQWsvialNwB4H9s",
 	other_needs_notes: "K8WryShuVikObpNmq7Pv",
 	referral_source: "WIFqOYy3YY0fOGImtcaa",
+	// spARK Labs Event Inquiry Form (JuAudDvFOm9CGB602qmE) — added 2026-08-06 for
+	// send-event-template. entity_type drives the 25% nonprofit discount in the pricing
+	// rate card (see send-event-template/references/). event_name doubles as the
+	// DocuSign "Type of Event" tab per Jarred's confirmation — the form has no separate
+	// event-type/category field.
+	entity_type: "hDKlFGDNaGo5Y4VQiKCX",
+	event_name: "BpiH2YY0kxCCSUERUSd1",
+	event_description: "Ih7c0pKZSPcJEbRaYRZC",
+	event_audience: "B70BXFiw56ZTXbw6VYWM",
+	expected_attendees: "yD1pFuNVnSWx8e96QdFI",
+	event_date_start: "8cygT4jotgGWkGPwjVT2",
+	event_date_end: "MQ3F0nZ836okP1U0YBUv",
+	event_start_time: "dkpb53ItuyrbzycmsMEA",
+	event_end_time: "ZDusEo2m85LZhLVMiixl",
+	event_space_requested: "GW3B6rIO3Bp8zobxeVE1",
 };
 
 function readField(submission: any, key: string): unknown {
@@ -166,6 +181,16 @@ function normalizeSubmission(submission: any) {
 		communication_preference: readField(submission, "communication_preference"),
 		other_needs_notes: readField(submission, "other_needs_notes"),
 		referral_source: readField(submission, "referral_source"),
+		entity_type: readField(submission, "entity_type"),
+		event_name: readField(submission, "event_name"),
+		event_description: readField(submission, "event_description"),
+		event_audience: readField(submission, "event_audience"),
+		expected_attendees: readField(submission, "expected_attendees"),
+		event_date_start: readField(submission, "event_date_start"),
+		event_date_end: readField(submission, "event_date_end"),
+		event_start_time: readField(submission, "event_start_time"),
+		event_end_time: readField(submission, "event_end_time"),
+		event_space_requested: readField(submission, "event_space_requested"),
 		raw: submission,
 	};
 }
